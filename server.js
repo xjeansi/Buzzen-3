@@ -2,17 +2,47 @@ const express = require('express');
 const { createServer } = require('http');
 const { WebSocketServer } = require('ws');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
+
+// Debug: Log the directory structure
+console.log('Current directory:', __dirname);
+console.log('Looking for public folder at:', path.join(__dirname, 'public'));
+
+// Check if public folder exists
+const publicPath = path.join(__dirname, 'public');
+if (fs.existsSync(publicPath)) {
+    console.log('✓ Public folder found!');
+    const files = fs.readdirSync(publicPath);
+    console.log('Files in public:', files);
+} else {
+    console.error('✗ Public folder NOT found!');
+    console.log('Directory contents:', fs.readdirSync(__dirname));
+}
 
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Explicit route for root
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    const indexPath = path.join(__dirname, 'public', 'index.html');
+    console.log('Trying to serve:', indexPath);
+    
+    if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+    } else {
+        console.error('index.html not found at:', indexPath);
+        res.status(404).send(`
+            <h1>Setup Error</h1>
+            <p>Die index.html wurde nicht gefunden.</p>
+            <p>Gesucht in: ${indexPath}</p>
+            <p>Aktuelles Verzeichnis: ${__dirname}</p>
+            <p>Dateien: ${fs.readdirSync(__dirname).join(', ')}</p>
+        `);
+    }
 });
 
 // Store rooms and their players
