@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buzzer App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        .setup-screen, .game-screen {
+            display: none;
+        }
+
+        .setup-screen.active, .game-screen.active {
+            display: block;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .buzzer-button {
+            width: 100%;
+            height: 200px;
+            border: none;
+            border-radius: 20px;
+            font-size: 36px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            box-shadow: 0 10px 30px rgba(245, 87, 108, 0.4);
+        }
+
+        .buzzer-button:hover:not(:disabled) {
+            transform: scale(1.05);
+            box-shadow: 0 15px 40px rgba(245, 87, 108, 0.6);
+        }
+
+        .buzzer-button:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+
+        .buzzer-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .status {
+            text-align: center;
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .status.waiting {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .status.buzzed {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .status.winner {
+            background: #c8e6c9;
+            color: #388e3c;
+            font-size: 24px;
+        }
+
+        .player-list {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+
+        .player-list h3 {
+            margin-bottom: 10px;
+            color: #555;
+        }
+
+        .player-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .player-item.winner {
+            background: #4caf50;
+            color: white;
+            font-weight: bold;
+        }
+
+        .connection-status {
+            text-align: center;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+
+        .connection-status.connected {
+            background: #c8e6c9;
+            color: #2e7d32;
+        }
+
+        .connection-status.disconnected {
+            background: #ffcdd2;
+            color: #c62828;
+        }
+
+        .btn-secondary {
+            background: #757575;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #616161;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 2em;
+            }
+
+            .buzzer-button {
+                height: 150px;
+                font-size: 28px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔔 Buzzer App</h1>
+        
+        <div class="connection-status disconnected" id="connectionStatus">
+            Verbinde...
+        </div>
+
+        <!-- Setup Screen -->
+        <div class="setup-screen active" id="setupScreen">
+            <div class="input-group">
+                <label for="roomCode">Raum-Code:</label>
+                <input type="text" id="roomCode" placeholder="z.B. QUIZ123" maxlength="20">
+                <small style="color: #777; margin-top: 5px; display: block;">
+                    Alle Spieler müssen denselben Code eingeben
+                </small>
+            </div>
+
+            <div class="input-group">
+                <label for="playerName">Dein Name:</label>
+                <input type="text" id="playerName" placeholder="z.B. Max" maxlength="20">
+            </div>
+
+            <button class="btn btn-primary" id="joinButton">Beitreten</button>
+        </div>
+
+        <!-- Game Screen -->
+        <div class="game-screen" id="gameScreen">
+            <div class="status waiting" id="status">
+                Bereit zum Buzzern!
+            </div>
+
+            <button class="buzzer-button" id="buzzerButton">
+                BUZZ!
+            </button>
+
+            <div class="player-list" id="playerList">
+                <h3>Spieler im Raum:</h3>
+                <div id="players"></div>
+            </div>
+
+            <button class="btn btn-secondary" id="resetButton">Zurücksetzen</button>
+            <button class="btn btn-secondary" id="leaveButton" style="margin-top: 10px;">Raum verlassen</button>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        let currentRoom = null;
+        let currentPlayer = null;
+        let buzzed = false;
+
+        const setupScreen = document.getElementById('setupScreen');
+        const gameScreen = document.getElementById('gameScreen');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const roomCodeInput = document.getElementById('roomCode');
+        const playerNameInput = document.getElementById('playerName');
+        const joinButton = document.getElementById('joinButton');
+        const buzzerButton = document.getElementById('buzzerButton');
+        const resetButton = document.getElementById('resetButton');
+        const leaveButton = document.getElementById('leaveButton');
+        const statusDiv = document.getElementById('status');
+        const playersDiv = document.getElementById('players');
+
+        function connectWebSocket() {
+            // Für Vercel Deployment: ersetzen Sie dies mit Ihrer WebSocket-URL
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}`;
+            
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                connectionStatus.textContent = 'Verbunden ✓';
+                connectionStatus.className = 'connection-status connected';
+            };
+
+            ws.onclose = () => {
+                connectionStatus.textContent = 'Verbindung verloren - Versuche neu zu verbinden...';
+                connectionStatus.className = 'connection-status disconnected';
+                setTimeout(connectWebSocket, 2000);
+            };
+
+            ws.onerror = () => {
+                connectionStatus.textContent = 'Verbindungsfehler';
+                connectionStatus.className = 'connection-status disconnected';
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleMessage(data);
+            };
+        }
+
+        function handleMessage(data) {
+            switch(data.type) {
+                case 'joined':
+                    currentRoom = data.room;
+                    currentPlayer = data.playerName;
+                    setupScreen.classList.remove('active');
+                    gameScreen.classList.add('active');
+                    updateStatus('Bereit zum Buzzern!', 'waiting');
+                    break;
+
+                case 'playerList':
+                    updatePlayerList(data.players);
+                    break;
+
+                case 'buzz':
+                    if (data.playerName === currentPlayer) {
+                        buzzed = true;
+                        buzzerButton.disabled = true;
+                        updateStatus('Du hast gebuzzert! Warte auf andere...', 'buzzed');
+                    } else {
+                        updateStatus(`${data.playerName} hat gebuzzert!`, 'buzzed');
+                    }
+                    break;
+
+                case 'winner':
+                    buzzerButton.disabled = true;
+                    if (data.winner === currentPlayer) {
+                        updateStatus('🎉 Du warst am schnellsten! 🎉', 'winner');
+                    } else {
+                        updateStatus(`${data.winner} war am schnellsten!`, 'winner');
+                    }
+                    break;
+
+                case 'reset':
+                    buzzed = false;
+                    buzzerButton.disabled = false;
+                    updateStatus('Bereit zum Buzzern!', 'waiting');
+                    break;
+            }
+        }
+
+        function updateStatus(text, className) {
+            statusDiv.textContent = text;
+            statusDiv.className = `status ${className}`;
+        }
+
+        function updatePlayerList(players) {
+            playersDiv.innerHTML = '';
+            players.forEach(player => {
+                const div = document.createElement('div');
+                div.className = 'player-item';
+                if (player.buzzed) {
+                    div.classList.add('winner');
+                }
+                div.innerHTML = `
+                    <span>${player.name}</span>
+                    <span>${player.buzzed ? '🔔 GEBUZZERT' : '⏳ Wartet'}</span>
+                `;
+                playersDiv.appendChild(div);
+            });
+        }
+
+        joinButton.addEventListener('click', () => {
+            const room = roomCodeInput.value.trim().toUpperCase();
+            const name = playerNameInput.value.trim();
+
+            if (!room || !name) {
+                alert('Bitte Raum-Code und Name eingeben!');
+                return;
+            }
+
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'join',
+                    room: room,
+                    playerName: name
+                }));
+            } else {
+                alert('Keine Verbindung zum Server. Bitte warten...');
+            }
+        });
+
+        buzzerButton.addEventListener('click', () => {
+            if (!buzzed && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'buzz',
+                    room: currentRoom,
+                    playerName: currentPlayer
+                }));
+            }
+        });
+
+        resetButton.addEventListener('click', () => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'reset',
+                    room: currentRoom
+                }));
+            }
+        });
+
+        leaveButton.addEventListener('click', () => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'leave',
+                    room: currentRoom,
+                    playerName: currentPlayer
+                }));
+            }
+            currentRoom = null;
+            currentPlayer = null;
+            buzzed = false;
+            setupScreen.classList.add('active');
+            gameScreen.classList.remove('active');
+            roomCodeInput.value = '';
+            playerNameInput.value = '';
+        });
+
+        // Enter-Taste für Join
+        playerNameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                joinButton.click();
+            }
+        });
+
+        roomCodeInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                playerNameInput.focus();
+            }
+        });
+
+        // Verbindung herstellen beim Laden
+        connectWebSocket();
+    </script>
+</body>
+</html>
