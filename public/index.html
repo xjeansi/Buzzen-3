@@ -1,287 +1,456 @@
-const express = require('express');
-const { createServer } = require('http');
-const { WebSocketServer } = require('ws');
-const path = require('path');
-const fs = require('fs');
-
-const app = express();
-const server = createServer(app);
-const wss = new WebSocketServer({ server });
-
-// Debug: Log the directory structure
-console.log('Current directory:', __dirname);
-console.log('Looking for public folder at:', path.join(__dirname, 'public'));
-
-// Check if public folder exists
-const publicPath = path.join(__dirname, 'public');
-if (fs.existsSync(publicPath)) {
-    console.log('✓ Public folder found!');
-    const files = fs.readdirSync(publicPath);
-    console.log('Files in public:', files);
-} else {
-    console.error('✗ Public folder NOT found!');
-    console.log('Directory contents:', fs.readdirSync(__dirname));
-}
-
-// Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.static(__dirname)); // Also serve from root
-
-// Explicit route for root
-app.get('/', (req, res) => {
-    // Try public folder first, then root
-    const publicPath = path.join(__dirname, 'public', 'index.html');
-    const rootPath = path.join(__dirname, 'index.html');
-    
-    console.log('Trying to serve from public:', publicPath);
-    console.log('Trying to serve from root:', rootPath);
-    
-    if (fs.existsSync(publicPath)) {
-        console.log('✓ Serving from public folder');
-        res.sendFile(publicPath);
-    } else if (fs.existsSync(rootPath)) {
-        console.log('✓ Serving from root folder');
-        res.sendFile(rootPath);
-    } else {
-        console.error('index.html not found in either location');
-        res.status(404).send(`
-            <h1>Setup Error</h1>
-            <p>Die index.html wurde nicht gefunden.</p>
-            <p>Gesucht in: ${publicPath} und ${rootPath}</p>
-            <p>Aktuelles Verzeichnis: ${__dirname}</p>
-            <p>Dateien: ${fs.readdirSync(__dirname).join(', ')}</p>
-        `);
-    }
-});
-
-// Store rooms and their players
-const rooms = new Map();
-
-// Helper function to broadcast to all clients in a room
-function broadcastToRoom(roomCode, message, excludeWs = null) {
-    const room = rooms.get(roomCode);
-    if (!room) return;
-
-    room.clients.forEach(client => {
-        if (client.ws !== excludeWs && client.ws.readyState === 1) {
-            client.ws.send(JSON.stringify(message));
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buzzer App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-    });
-}
 
-// Helper function to send player list to all in room
-function sendPlayerList(roomCode) {
-    const room = rooms.get(roomCode);
-    if (!room) return;
-
-    const players = Array.from(room.players.values()).map(p => ({
-        name: p.name,
-        buzzed: p.buzzed,
-        buzzTime: p.buzzTime
-    }));
-
-    broadcastToRoom(roomCode, {
-        type: 'playerList',
-        players: players
-    });
-
-    // Also send to the room itself
-    room.clients.forEach(client => {
-        if (client.ws.readyState === 1) {
-            client.ws.send(JSON.stringify({
-                type: 'playerList',
-                players: players
-            }));
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
         }
-    });
-}
 
-wss.on('connection', (ws) => {
-    console.log('New client connected');
-    let currentRoom = null;
-    let currentPlayer = null;
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
 
-    ws.on('message', (data) => {
-        try {
-            const message = JSON.parse(data);
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        .setup-screen, .game-screen {
+            display: none;
+        }
+
+        .setup-screen.active, .game-screen.active {
+            display: block;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .buzzer-button {
+            width: 100%;
+            height: 200px;
+            border: none;
+            border-radius: 20px;
+            font-size: 36px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            box-shadow: 0 10px 30px rgba(245, 87, 108, 0.4);
+        }
+
+        .buzzer-button:hover:not(:disabled) {
+            transform: scale(1.05);
+            box-shadow: 0 15px 40px rgba(245, 87, 108, 0.6);
+        }
+
+        .buzzer-button:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+
+        .buzzer-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .status {
+            text-align: center;
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .status.waiting {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .status.buzzed {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .status.winner {
+            background: #c8e6c9;
+            color: #388e3c;
+            font-size: 24px;
+        }
+
+        .player-list {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+
+        .player-list h3 {
+            margin-bottom: 10px;
+            color: #555;
+        }
+
+        .player-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .player-item.winner {
+            background: #4caf50;
+            color: white;
+            font-weight: bold;
+        }
+
+        .connection-status {
+            text-align: center;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+
+        .connection-status.connected {
+            background: #c8e6c9;
+            color: #2e7d32;
+        }
+
+        .connection-status.disconnected {
+            background: #ffcdd2;
+            color: #c62828;
+        }
+
+        .btn-secondary {
+            background: #757575;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #616161;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 2em;
+            }
+
+            .buzzer-button {
+                height: 150px;
+                font-size: 28px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔔 Buzzer App</h1>
+        
+        <div class="connection-status disconnected" id="connectionStatus">
+            Verbinde...
+        </div>
+
+        <!-- Setup Screen -->
+        <div class="setup-screen active" id="setupScreen">
+            <div class="input-group">
+                <label for="roomCode">Raum-Code:</label>
+                <input type="text" id="roomCode" placeholder="z.B. QUIZ123" maxlength="20">
+                <small style="color: #777; margin-top: 5px; display: block;">
+                    Alle Spieler müssen denselben Code eingeben
+                </small>
+            </div>
+
+            <div class="input-group">
+                <label for="playerName">Dein Name:</label>
+                <input type="text" id="playerName" placeholder="z.B. Max" maxlength="20">
+            </div>
+
+            <button class="btn btn-primary" id="joinButton">Beitreten</button>
+        </div>
+
+        <!-- Game Screen -->
+        <div class="game-screen" id="gameScreen">
+            <div class="status waiting" id="status">
+                Bereit zum Buzzern!
+            </div>
+
+            <button class="buzzer-button" id="buzzerButton">
+                BUZZ!
+            </button>
+
+            <div class="player-list" id="playerList">
+                <h3>Spieler im Raum:</h3>
+                <div id="players"></div>
+            </div>
+
+            <button class="btn btn-secondary" id="resetButton">Zurücksetzen</button>
+            <button class="btn btn-secondary" id="leaveButton" style="margin-top: 10px;">Raum verlassen</button>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        let currentRoom = null;
+        let currentPlayer = null;
+        let buzzed = false;
+
+        const setupScreen = document.getElementById('setupScreen');
+        const gameScreen = document.getElementById('gameScreen');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const roomCodeInput = document.getElementById('roomCode');
+        const playerNameInput = document.getElementById('playerName');
+        const joinButton = document.getElementById('joinButton');
+        const buzzerButton = document.getElementById('buzzerButton');
+        const resetButton = document.getElementById('resetButton');
+        const leaveButton = document.getElementById('leaveButton');
+        const statusDiv = document.getElementById('status');
+        const playersDiv = document.getElementById('players');
+
+        function connectWebSocket() {
+            // Für Vercel Deployment: ersetzen Sie dies mit Ihrer WebSocket-URL
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}`;
             
-            switch(message.type) {
-                case 'join':
-                    const roomCode = message.room.toUpperCase();
-                    const playerName = message.playerName;
+            ws = new WebSocket(wsUrl);
 
-                    // Create room if it doesn't exist
-                    if (!rooms.has(roomCode)) {
-                        rooms.set(roomCode, {
-                            code: roomCode,
-                            players: new Map(),
-                            clients: new Set(),
-                            buzzedPlayers: []
-                        });
-                    }
+            ws.onopen = () => {
+                connectionStatus.textContent = 'Verbunden ✓';
+                connectionStatus.className = 'connection-status connected';
+            };
 
-                    const room = rooms.get(roomCode);
-                    
-                    // Add player to room
-                    room.players.set(playerName, {
-                        name: playerName,
-                        buzzed: false,
-                        buzzTime: null
-                    });
+            ws.onclose = () => {
+                connectionStatus.textContent = 'Verbindung verloren - Versuche neu zu verbinden...';
+                connectionStatus.className = 'connection-status disconnected';
+                setTimeout(connectWebSocket, 2000);
+            };
 
-                    room.clients.add({ ws, playerName });
-                    
-                    currentRoom = roomCode;
-                    currentPlayer = playerName;
+            ws.onerror = () => {
+                connectionStatus.textContent = 'Verbindungsfehler';
+                connectionStatus.className = 'connection-status disconnected';
+            };
 
-                    // Send confirmation to player
-                    ws.send(JSON.stringify({
-                        type: 'joined',
-                        room: roomCode,
-                        playerName: playerName
-                    }));
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleMessage(data);
+            };
+        }
 
-                    // Update all players in room
-                    sendPlayerList(roomCode);
+        function handleMessage(data) {
+            switch(data.type) {
+                case 'joined':
+                    currentRoom = data.room;
+                    currentPlayer = data.playerName;
+                    setupScreen.classList.remove('active');
+                    gameScreen.classList.add('active');
+                    updateStatus('Bereit zum Buzzern!', 'waiting');
+                    break;
 
-                    console.log(`${playerName} joined room ${roomCode}`);
+                case 'playerList':
+                    updatePlayerList(data.players);
                     break;
 
                 case 'buzz':
-                    if (!currentRoom || !currentPlayer) break;
-
-                    const buzzRoom = rooms.get(currentRoom);
-                    if (!buzzRoom) break;
-
-                    const player = buzzRoom.players.get(currentPlayer);
-                    if (!player || player.buzzed) break;
-
-                    // Mark player as buzzed
-                    player.buzzed = true;
-                    player.buzzTime = Date.now();
-                    buzzRoom.buzzedPlayers.push({
-                        name: currentPlayer,
-                        time: player.buzzTime
-                    });
-
-                    // Notify all players about the buzz
-                    broadcastToRoom(currentRoom, {
-                        type: 'buzz',
-                        playerName: currentPlayer,
-                        time: player.buzzTime
-                    });
-
-                    ws.send(JSON.stringify({
-                        type: 'buzz',
-                        playerName: currentPlayer,
-                        time: player.buzzTime
-                    }));
-
-                    // Check if this is the first buzz (winner)
-                    if (buzzRoom.buzzedPlayers.length === 1) {
-                        broadcastToRoom(currentRoom, {
-                            type: 'winner',
-                            winner: currentPlayer
-                        });
-
-                        ws.send(JSON.stringify({
-                            type: 'winner',
-                            winner: currentPlayer
-                        }));
+                    if (data.playerName === currentPlayer) {
+                        buzzed = true;
+                        buzzerButton.disabled = true;
+                        updateStatus('Du hast gebuzzert! Warte auf andere...', 'buzzed');
+                    } else {
+                        updateStatus(`${data.playerName} hat gebuzzert!`, 'buzzed');
                     }
+                    break;
 
-                    sendPlayerList(currentRoom);
-
-                    console.log(`${currentPlayer} buzzed in room ${currentRoom}`);
+                case 'winner':
+                    buzzerButton.disabled = true;
+                    if (data.winner === currentPlayer) {
+                        updateStatus('🎉 Du warst am schnellsten! 🎉', 'winner');
+                    } else {
+                        updateStatus(`${data.winner} war am schnellsten!`, 'winner');
+                    }
                     break;
 
                 case 'reset':
-                    if (!currentRoom) break;
-
-                    const resetRoom = rooms.get(currentRoom);
-                    if (!resetRoom) break;
-
-                    // Reset all players
-                    resetRoom.players.forEach(p => {
-                        p.buzzed = false;
-                        p.buzzTime = null;
-                    });
-                    resetRoom.buzzedPlayers = [];
-
-                    // Notify all players
-                    broadcastToRoom(currentRoom, {
-                        type: 'reset'
-                    });
-
-                    ws.send(JSON.stringify({
-                        type: 'reset'
-                    }));
-
-                    sendPlayerList(currentRoom);
-
-                    console.log(`Room ${currentRoom} reset`);
-                    break;
-
-                case 'leave':
-                    if (!currentRoom || !currentPlayer) break;
-
-                    const leaveRoom = rooms.get(currentRoom);
-                    if (!leaveRoom) break;
-
-                    // Remove player
-                    leaveRoom.players.delete(currentPlayer);
-                    leaveRoom.clients.forEach(client => {
-                        if (client.playerName === currentPlayer) {
-                            leaveRoom.clients.delete(client);
-                        }
-                    });
-
-                    // Delete room if empty
-                    if (leaveRoom.players.size === 0) {
-                        rooms.delete(currentRoom);
-                        console.log(`Room ${currentRoom} deleted (empty)`);
-                    } else {
-                        sendPlayerList(currentRoom);
-                    }
-
-                    console.log(`${currentPlayer} left room ${currentRoom}`);
-                    
-                    currentRoom = null;
-                    currentPlayer = null;
+                    buzzed = false;
+                    buzzerButton.disabled = false;
+                    updateStatus('Bereit zum Buzzern!', 'waiting');
                     break;
             }
-        } catch (error) {
-            console.error('Error handling message:', error);
         }
-    });
 
-    ws.on('close', () => {
-        console.log('Client disconnected');
-        
-        // Clean up player from room
-        if (currentRoom && currentPlayer) {
-            const room = rooms.get(currentRoom);
-            if (room) {
-                room.players.delete(currentPlayer);
-                room.clients.forEach(client => {
-                    if (client.playerName === currentPlayer) {
-                        room.clients.delete(client);
-                    }
-                });
+        function updateStatus(text, className) {
+            statusDiv.textContent = text;
+            statusDiv.className = `status ${className}`;
+        }
 
-                if (room.players.size === 0) {
-                    rooms.delete(currentRoom);
-                    console.log(`Room ${currentRoom} deleted (empty)`);
-                } else {
-                    sendPlayerList(currentRoom);
+        function updatePlayerList(players) {
+            playersDiv.innerHTML = '';
+            players.forEach(player => {
+                const div = document.createElement('div');
+                div.className = 'player-item';
+                if (player.buzzed) {
+                    div.classList.add('winner');
                 }
-            }
+                div.innerHTML = `
+                    <span>${player.name}</span>
+                    <span>${player.buzzed ? '🔔 GEBUZZERT' : '⏳ Wartet'}</span>
+                `;
+                playersDiv.appendChild(div);
+            });
         }
-    });
-});
 
-const PORT = process.env.PORT || 3000;
+        joinButton.addEventListener('click', () => {
+            const room = roomCodeInput.value.trim().toUpperCase();
+            const name = playerNameInput.value.trim();
 
-server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+            if (!room || !name) {
+                alert('Bitte Raum-Code und Name eingeben!');
+                return;
+            }
+
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'join',
+                    room: room,
+                    playerName: name
+                }));
+            } else {
+                alert('Keine Verbindung zum Server. Bitte warten...');
+            }
+        });
+
+        buzzerButton.addEventListener('click', () => {
+            if (!buzzed && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'buzz',
+                    room: currentRoom,
+                    playerName: currentPlayer
+                }));
+            }
+        });
+
+        resetButton.addEventListener('click', () => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'reset',
+                    room: currentRoom
+                }));
+            }
+        });
+
+        leaveButton.addEventListener('click', () => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'leave',
+                    room: currentRoom,
+                    playerName: currentPlayer
+                }));
+            }
+            currentRoom = null;
+            currentPlayer = null;
+            buzzed = false;
+            setupScreen.classList.add('active');
+            gameScreen.classList.remove('active');
+            roomCodeInput.value = '';
+            playerNameInput.value = '';
+        });
+
+        // Enter-Taste für Join
+        playerNameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                joinButton.click();
+            }
+        });
+
+        roomCodeInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                playerNameInput.focus();
+            }
+        });
+
+        // Verbindung herstellen beim Laden
+        connectWebSocket();
+    </script>
+</body>
+</html>

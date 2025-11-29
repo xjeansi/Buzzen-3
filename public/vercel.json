@@ -1,0 +1,5 @@
+{
+  "note": "WebSockets funktionieren auf Vercel nicht zuverlässig!",
+  "recommendation": "Bitte verwenden Sie Railway.app oder Render.com für diese App",
+  "vercel-alternative": "Für Vercel müsste die App komplett umgebaut werden (ohne WebSockets)"
+}
