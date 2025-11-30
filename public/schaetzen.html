@@ -460,33 +460,41 @@
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}`;
             
+            console.log('Connecting to WebSocket:', wsUrl);
             ws = new WebSocket(wsUrl);
 
             ws.onopen = () => {
+                console.log('WebSocket connected!');
                 connectionStatus.textContent = 'Verbunden ✓';
                 connectionStatus.className = 'connection-status connected';
             };
 
             ws.onclose = () => {
+                console.log('WebSocket closed, reconnecting...');
                 connectionStatus.textContent = 'Verbindung verloren - Versuche neu zu verbinden...';
                 connectionStatus.className = 'connection-status disconnected';
                 setTimeout(connectWebSocket, 2000);
             };
 
-            ws.onerror = () => {
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
                 connectionStatus.textContent = 'Verbindungsfehler';
                 connectionStatus.className = 'connection-status disconnected';
             };
 
             ws.onmessage = (event) => {
+                console.log('Raw message received:', event.data);
                 const data = JSON.parse(event.data);
                 handleMessage(data);
             };
         }
 
         function handleMessage(data) {
+            console.log('Received message:', data);
+            
             switch(data.type) {
                 case 'guessing_joined':
+                    console.log('Joined room!', data);
                     currentRoom = data.room;
                     currentPlayer = data.playerName;
                     isHost = data.isHost;
@@ -494,8 +502,10 @@
                     setupScreen.classList.remove('active');
                     
                     if (isHost) {
+                        console.log('I am host, showing host setup');
                         hostSetup.classList.add('active');
                     } else {
+                        console.log('I am not host, showing game screen');
                         gameScreen.classList.add('active');
                         readyButton.disabled = false;
                     }
@@ -619,17 +629,26 @@
             const room = roomCodeInput.value.trim().toUpperCase();
             const name = playerNameInput.value.trim();
 
+            console.log('Join button clicked:', { room, name });
+
             if (!room || !name) {
                 alert('Bitte Raum-Code und Name eingeben!');
                 return;
             }
 
+            console.log('WebSocket state:', ws.readyState);
+
             if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
+                const message = {
                     type: 'guessing_join',
                     room: room,
                     playerName: name
-                }));
+                };
+                console.log('Sending message:', message);
+                ws.send(JSON.stringify(message));
+            } else {
+                alert('Keine Verbindung zum Server. Bitte warten und erneut versuchen...');
+                console.error('WebSocket not open. State:', ws.readyState);
             }
         });
 
