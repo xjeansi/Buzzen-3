@@ -688,13 +688,18 @@
                     console.log('Next round starting');
                     resultsScreen.classList.remove('active');
                     gameScreen.classList.add('active');
+                    
+                    // Reset all UI elements
                     readyButton.disabled = false;
                     readyButton.style.display = 'block';
                     readyButton.textContent = 'Ich bin bereit!';
                     submitButton.style.display = 'block';
+                    submitButton.disabled = true;
+                    submitButton.textContent = 'Antwort abschicken';
                     answerInput.value = '';
                     answerInput.disabled = true;
-                    submitButton.disabled = true;
+                    timerDiv.textContent = '--:--';
+                    timerDiv.className = 'timer';
                     break;
             }
         }
