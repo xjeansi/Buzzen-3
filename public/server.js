@@ -2,6 +2,7 @@ const express = require('express');
 const { createServer } = require('http');
 const { WebSocketServer } = require('ws');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = createServer(app);
@@ -9,18 +10,28 @@ const wss = new WebSocketServer({ server });
 
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(__dirname));
 
-// Explicit route for root
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    const publicPath = path.join(__dirname, 'public', 'index.html');
+    const rootPath = path.join(__dirname, 'index.html');
+    
+    if (fs.existsSync(publicPath)) {
+        res.sendFile(publicPath);
+    } else if (fs.existsSync(rootPath)) {
+        res.sendFile(rootPath);
+    } else {
+        res.status(404).send('index.html not found');
+    }
 });
 
-// Store rooms and their players
-const rooms = new Map();
+// Store rooms for both games
+const buzzerRooms = new Map();
+const guessingRooms = new Map();
 
-// Helper function to broadcast to all clients in a room
-function broadcastToRoom(roomCode, message, excludeWs = null) {
-    const room = rooms.get(roomCode);
+// Helper functions for Buzzer Game
+function broadcastToBuzzerRoom(roomCode, message, excludeWs = null) {
+    const room = buzzerRooms.get(roomCode);
     if (!room) return;
 
     room.clients.forEach(client => {
@@ -30,9 +41,8 @@ function broadcastToRoom(roomCode, message, excludeWs = null) {
     });
 }
 
-// Helper function to send player list to all in room
-function sendPlayerList(roomCode) {
-    const room = rooms.get(roomCode);
+function sendBuzzerPlayerList(roomCode) {
+    const room = buzzerRooms.get(roomCode);
     if (!room) return;
 
     const players = Array.from(room.players.values()).map(p => ({
@@ -41,12 +51,11 @@ function sendPlayerList(roomCode) {
         buzzTime: p.buzzTime
     }));
 
-    broadcastToRoom(roomCode, {
+    broadcastToBuzzerRoom(roomCode, {
         type: 'playerList',
         players: players
     });
 
-    // Also send to the room itself
     room.clients.forEach(client => {
         if (client.ws.readyState === 1) {
             client.ws.send(JSON.stringify({
@@ -57,160 +66,388 @@ function sendPlayerList(roomCode) {
     });
 }
 
+// Helper functions for Guessing Game
+function broadcastToGuessingRoom(roomCode, message, excludeWs = null) {
+    const room = guessingRooms.get(roomCode);
+    if (!room) return;
+
+    room.clients.forEach(client => {
+        if (client.ws !== excludeWs && client.ws.readyState === 1) {
+            client.ws.send(JSON.stringify(message));
+        }
+    });
+}
+
+function sendGuessingPlayerList(roomCode) {
+    const room = guessingRooms.get(roomCode);
+    if (!room) return;
+
+    const players = Array.from(room.players.values()).map(p => ({
+        name: p.name,
+        ready: p.ready,
+        answered: p.answered,
+        isHost: p.isHost
+    }));
+
+    broadcastToGuessingRoom(roomCode, {
+        type: 'guessing_playerList',
+        players: players
+    });
+
+    room.clients.forEach(client => {
+        if (client.ws.readyState === 1) {
+            client.ws.send(JSON.stringify({
+                type: 'guessing_playerList',
+                players: players
+            }));
+        }
+    });
+}
+
+function checkAllReady(roomCode) {
+    const room = guessingRooms.get(roomCode);
+    if (!room || !room.timeSet) return false;
+
+    const allReady = Array.from(room.players.values()).every(p => p.ready);
+    
+    if (allReady && room.players.size > 0) {
+        startGuessingGame(roomCode);
+    }
+}
+
+function checkAllAnswered(roomCode) {
+    const room = guessingRooms.get(roomCode);
+    if (!room || !room.gameActive) return;
+
+    const allAnswered = Array.from(room.players.values()).every(p => p.answered);
+    
+    if (allAnswered) {
+        endGuessingGame(roomCode);
+    }
+}
+
+function startGuessingGame(roomCode) {
+    const room = guessingRooms.get(roomCode);
+    if (!room) return;
+
+    room.gameActive = true;
+    
+    broadcastToGuessingRoom(roomCode, {
+        type: 'guessing_gameStart',
+        duration: room.roundTime
+    });
+
+    room.clients.forEach(client => {
+        if (client.ws.readyState === 1) {
+            client.ws.send(JSON.stringify({
+                type: 'guessing_gameStart',
+                duration: room.roundTime
+            }));
+        }
+    });
+
+    // Auto-end game after time runs out
+    room.gameTimeout = setTimeout(() => {
+        endGuessingGame(roomCode);
+    }, room.roundTime * 1000);
+}
+
+function endGuessingGame(roomCode) {
+    const room = guessingRooms.get(roomCode);
+    if (!room) return;
+
+    if (room.gameTimeout) {
+        clearTimeout(room.gameTimeout);
+        room.gameTimeout = null;
+    }
+
+    room.gameActive = false;
+    
+    // Reset ready and answered states
+    room.players.forEach(p => {
+        p.ready = false;
+        p.answered = false;
+    });
+
+    broadcastToGuessingRoom(roomCode, {
+        type: 'guessing_gameEnd'
+    });
+
+    room.clients.forEach(client => {
+        if (client.ws.readyState === 1) {
+            client.ws.send(JSON.stringify({
+                type: 'guessing_gameEnd'
+            }));
+        }
+    });
+
+    sendGuessingPlayerList(roomCode);
+}
+
 wss.on('connection', (ws) => {
     console.log('New client connected');
-    let currentRoom = null;
+    let currentBuzzerRoom = null;
+    let currentGuessingRoom = null;
     let currentPlayer = null;
 
     ws.on('message', (data) => {
         try {
             const message = JSON.parse(data);
             
-            switch(message.type) {
-                case 'join':
-                    const roomCode = message.room.toUpperCase();
-                    const playerName = message.playerName;
+            // BUZZER GAME HANDLERS
+            if (message.type === 'join') {
+                const roomCode = message.room.toUpperCase();
+                const playerName = message.playerName;
 
-                    // Create room if it doesn't exist
-                    if (!rooms.has(roomCode)) {
-                        rooms.set(roomCode, {
-                            code: roomCode,
-                            players: new Map(),
-                            clients: new Set(),
-                            buzzedPlayers: []
-                        });
-                    }
-
-                    const room = rooms.get(roomCode);
-                    
-                    // Add player to room
-                    room.players.set(playerName, {
-                        name: playerName,
-                        buzzed: false,
-                        buzzTime: null
+                if (!buzzerRooms.has(roomCode)) {
+                    buzzerRooms.set(roomCode, {
+                        code: roomCode,
+                        players: new Map(),
+                        clients: new Set(),
+                        buzzedPlayers: []
                     });
+                }
 
-                    room.clients.add({ ws, playerName });
-                    
-                    currentRoom = roomCode;
-                    currentPlayer = playerName;
+                const room = buzzerRooms.get(roomCode);
+                room.players.set(playerName, {
+                    name: playerName,
+                    buzzed: false,
+                    buzzTime: null
+                });
 
-                    // Send confirmation to player
-                    ws.send(JSON.stringify({
-                        type: 'joined',
-                        room: roomCode,
-                        playerName: playerName
-                    }));
+                room.clients.add({ ws, playerName });
+                currentBuzzerRoom = roomCode;
+                currentPlayer = playerName;
 
-                    // Update all players in room
-                    sendPlayerList(roomCode);
+                ws.send(JSON.stringify({
+                    type: 'joined',
+                    room: roomCode,
+                    playerName: playerName
+                }));
 
-                    console.log(`${playerName} joined room ${roomCode}`);
-                    break;
-
-                case 'buzz':
-                    if (!currentRoom || !currentPlayer) break;
-
-                    const buzzRoom = rooms.get(currentRoom);
-                    if (!buzzRoom) break;
-
-                    const player = buzzRoom.players.get(currentPlayer);
-                    if (!player || player.buzzed) break;
-
-                    // Mark player as buzzed
-                    player.buzzed = true;
-                    player.buzzTime = Date.now();
-                    buzzRoom.buzzedPlayers.push({
-                        name: currentPlayer,
-                        time: player.buzzTime
-                    });
-
-                    // Notify all players about the buzz
-                    broadcastToRoom(currentRoom, {
-                        type: 'buzz',
-                        playerName: currentPlayer,
-                        time: player.buzzTime
-                    });
-
-                    ws.send(JSON.stringify({
-                        type: 'buzz',
-                        playerName: currentPlayer,
-                        time: player.buzzTime
-                    }));
-
-                    // Check if this is the first buzz (winner)
-                    if (buzzRoom.buzzedPlayers.length === 1) {
-                        broadcastToRoom(currentRoom, {
-                            type: 'winner',
-                            winner: currentPlayer
-                        });
-
-                        ws.send(JSON.stringify({
-                            type: 'winner',
-                            winner: currentPlayer
-                        }));
-                    }
-
-                    sendPlayerList(currentRoom);
-
-                    console.log(`${currentPlayer} buzzed in room ${currentRoom}`);
-                    break;
-
-                case 'reset':
-                    if (!currentRoom) break;
-
-                    const resetRoom = rooms.get(currentRoom);
-                    if (!resetRoom) break;
-
-                    // Reset all players
-                    resetRoom.players.forEach(p => {
-                        p.buzzed = false;
-                        p.buzzTime = null;
-                    });
-                    resetRoom.buzzedPlayers = [];
-
-                    // Notify all players
-                    broadcastToRoom(currentRoom, {
-                        type: 'reset'
-                    });
-
-                    ws.send(JSON.stringify({
-                        type: 'reset'
-                    }));
-
-                    sendPlayerList(currentRoom);
-
-                    console.log(`Room ${currentRoom} reset`);
-                    break;
-
-                case 'leave':
-                    if (!currentRoom || !currentPlayer) break;
-
-                    const leaveRoom = rooms.get(currentRoom);
-                    if (!leaveRoom) break;
-
-                    // Remove player
-                    leaveRoom.players.delete(currentPlayer);
-                    leaveRoom.clients.forEach(client => {
-                        if (client.playerName === currentPlayer) {
-                            leaveRoom.clients.delete(client);
-                        }
-                    });
-
-                    // Delete room if empty
-                    if (leaveRoom.players.size === 0) {
-                        rooms.delete(currentRoom);
-                        console.log(`Room ${currentRoom} deleted (empty)`);
-                    } else {
-                        sendPlayerList(currentRoom);
-                    }
-
-                    console.log(`${currentPlayer} left room ${currentRoom}`);
-                    
-                    currentRoom = null;
-                    currentPlayer = null;
-                    break;
+                sendBuzzerPlayerList(roomCode);
+                console.log(`${playerName} joined buzzer room ${roomCode}`);
             }
+            
+            else if (message.type === 'buzz') {
+                if (!currentBuzzerRoom || !currentPlayer) return;
+
+                const room = buzzerRooms.get(currentBuzzerRoom);
+                if (!room) return;
+
+                const player = room.players.get(currentPlayer);
+                if (!player || player.buzzed) return;
+
+                player.buzzed = true;
+                player.buzzTime = Date.now();
+                room.buzzedPlayers.push({
+                    name: currentPlayer,
+                    time: player.buzzTime
+                });
+
+                broadcastToBuzzerRoom(currentBuzzerRoom, {
+                    type: 'buzz',
+                    playerName: currentPlayer,
+                    time: player.buzzTime
+                });
+
+                ws.send(JSON.stringify({
+                    type: 'buzz',
+                    playerName: currentPlayer,
+                    time: player.buzzTime
+                }));
+
+                if (room.buzzedPlayers.length === 1) {
+                    broadcastToBuzzerRoom(currentBuzzerRoom, {
+                        type: 'winner',
+                        winner: currentPlayer
+                    });
+
+                    ws.send(JSON.stringify({
+                        type: 'winner',
+                        winner: currentPlayer
+                    }));
+                }
+
+                sendBuzzerPlayerList(currentBuzzerRoom);
+                console.log(`${currentPlayer} buzzed in room ${currentBuzzerRoom}`);
+            }
+            
+            else if (message.type === 'reset') {
+                if (!currentBuzzerRoom) return;
+
+                const room = buzzerRooms.get(currentBuzzerRoom);
+                if (!room) return;
+
+                room.players.forEach(p => {
+                    p.buzzed = false;
+                    p.buzzTime = null;
+                });
+                room.buzzedPlayers = [];
+
+                broadcastToBuzzerRoom(currentBuzzerRoom, {
+                    type: 'reset'
+                });
+
+                ws.send(JSON.stringify({
+                    type: 'reset'
+                }));
+
+                sendBuzzerPlayerList(currentBuzzerRoom);
+                console.log(`Buzzer room ${currentBuzzerRoom} reset`);
+            }
+            
+            else if (message.type === 'leave') {
+                if (!currentBuzzerRoom || !currentPlayer) return;
+
+                const room = buzzerRooms.get(currentBuzzerRoom);
+                if (!room) return;
+
+                room.players.delete(currentPlayer);
+                room.clients.forEach(client => {
+                    if (client.playerName === currentPlayer) {
+                        room.clients.delete(client);
+                    }
+                });
+
+                if (room.players.size === 0) {
+                    buzzerRooms.delete(currentBuzzerRoom);
+                    console.log(`Buzzer room ${currentBuzzerRoom} deleted (empty)`);
+                } else {
+                    sendBuzzerPlayerList(currentBuzzerRoom);
+                }
+
+                console.log(`${currentPlayer} left buzzer room ${currentBuzzerRoom}`);
+                currentBuzzerRoom = null;
+                currentPlayer = null;
+            }
+
+            // GUESSING GAME HANDLERS
+            else if (message.type === 'guessing_join') {
+                const roomCode = message.room.toUpperCase();
+                const playerName = message.playerName;
+
+                let isHost = false;
+                if (!guessingRooms.has(roomCode)) {
+                    isHost = true;
+                    guessingRooms.set(roomCode, {
+                        code: roomCode,
+                        players: new Map(),
+                        clients: new Set(),
+                        roundTime: null,
+                        timeSet: false,
+                        gameActive: false,
+                        gameTimeout: null
+                    });
+                }
+
+                const room = guessingRooms.get(roomCode);
+                room.players.set(playerName, {
+                    name: playerName,
+                    ready: false,
+                    answered: false,
+                    isHost: isHost
+                });
+
+                room.clients.add({ ws, playerName });
+                currentGuessingRoom = roomCode;
+                currentPlayer = playerName;
+
+                ws.send(JSON.stringify({
+                    type: 'guessing_joined',
+                    room: roomCode,
+                    playerName: playerName,
+                    isHost: isHost
+                }));
+
+                sendGuessingPlayerList(roomCode);
+                console.log(`${playerName} joined guessing room ${roomCode} (host: ${isHost})`);
+            }
+            
+            else if (message.type === 'guessing_setTime') {
+                if (!currentGuessingRoom) return;
+
+                const room = guessingRooms.get(currentGuessingRoom);
+                if (!room) return;
+
+                room.roundTime = message.time;
+                room.timeSet = true;
+
+                broadcastToGuessingRoom(currentGuessingRoom, {
+                    type: 'guessing_timeSet',
+                    time: message.time
+                });
+
+                ws.send(JSON.stringify({
+                    type: 'guessing_timeSet',
+                    time: message.time
+                }));
+
+                console.log(`Guessing room ${currentGuessingRoom} time set to ${message.time}s`);
+            }
+            
+            else if (message.type === 'guessing_ready') {
+                if (!currentGuessingRoom || !currentPlayer) return;
+
+                const room = guessingRooms.get(currentGuessingRoom);
+                if (!room) return;
+
+                const player = room.players.get(currentPlayer);
+                if (!player) return;
+
+                player.ready = true;
+                sendGuessingPlayerList(currentGuessingRoom);
+                checkAllReady(currentGuessingRoom);
+                
+                console.log(`${currentPlayer} is ready in guessing room ${currentGuessingRoom}`);
+            }
+            
+            else if (message.type === 'guessing_answer') {
+                if (!currentGuessingRoom || !currentPlayer) return;
+
+                const room = guessingRooms.get(currentGuessingRoom);
+                if (!room || !room.gameActive) return;
+
+                const player = room.players.get(currentPlayer);
+                if (!player) return;
+
+                player.answered = true;
+                player.answer = message.answer;
+                
+                sendGuessingPlayerList(currentGuessingRoom);
+                checkAllAnswered(currentGuessingRoom);
+                
+                console.log(`${currentPlayer} answered in guessing room ${currentGuessingRoom}`);
+            }
+            
+            else if (message.type === 'guessing_leave') {
+                if (!currentGuessingRoom || !currentPlayer) return;
+
+                const room = guessingRooms.get(currentGuessingRoom);
+                if (!room) return;
+
+                room.players.delete(currentPlayer);
+                room.clients.forEach(client => {
+                    if (client.playerName === currentPlayer) {
+                        room.clients.delete(client);
+                    }
+                });
+
+                if (room.players.size === 0) {
+                    if (room.gameTimeout) {
+                        clearTimeout(room.gameTimeout);
+                    }
+                    guessingRooms.delete(currentGuessingRoom);
+                    console.log(`Guessing room ${currentGuessingRoom} deleted (empty)`);
+                } else {
+                    sendGuessingPlayerList(currentGuessingRoom);
+                }
+
+                console.log(`${currentPlayer} left guessing room ${currentGuessingRoom}`);
+                currentGuessingRoom = null;
+                currentPlayer = null;
+            }
+            
         } catch (error) {
             console.error('Error handling message:', error);
         }
@@ -219,9 +456,9 @@ wss.on('connection', (ws) => {
     ws.on('close', () => {
         console.log('Client disconnected');
         
-        // Clean up player from room
-        if (currentRoom && currentPlayer) {
-            const room = rooms.get(currentRoom);
+        // Clean up buzzer room
+        if (currentBuzzerRoom && currentPlayer) {
+            const room = buzzerRooms.get(currentBuzzerRoom);
             if (room) {
                 room.players.delete(currentPlayer);
                 room.clients.forEach(client => {
@@ -231,10 +468,33 @@ wss.on('connection', (ws) => {
                 });
 
                 if (room.players.size === 0) {
-                    rooms.delete(currentRoom);
-                    console.log(`Room ${currentRoom} deleted (empty)`);
+                    buzzerRooms.delete(currentBuzzerRoom);
+                    console.log(`Buzzer room ${currentBuzzerRoom} deleted (empty)`);
                 } else {
-                    sendPlayerList(currentRoom);
+                    sendBuzzerPlayerList(currentBuzzerRoom);
+                }
+            }
+        }
+
+        // Clean up guessing room
+        if (currentGuessingRoom && currentPlayer) {
+            const room = guessingRooms.get(currentGuessingRoom);
+            if (room) {
+                room.players.delete(currentPlayer);
+                room.clients.forEach(client => {
+                    if (client.playerName === currentPlayer) {
+                        room.clients.delete(client);
+                    }
+                });
+
+                if (room.players.size === 0) {
+                    if (room.gameTimeout) {
+                        clearTimeout(room.gameTimeout);
+                    }
+                    guessingRooms.delete(currentGuessingRoom);
+                    console.log(`Guessing room ${currentGuessingRoom} deleted (empty)`);
+                } else {
+                    sendGuessingPlayerList(currentGuessingRoom);
                 }
             }
         }
@@ -245,4 +505,6 @@ const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+    console.log(`Buzzer Game: /buzzer.html`);
+    console.log(`Guessing Game: /schaetzen.html`);
 });

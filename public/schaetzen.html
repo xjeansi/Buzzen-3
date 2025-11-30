@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schätzen, schätzen und raten - Mörlen City</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 50%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(255, 77, 109, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 40% 20%, rgba(72, 219, 251, 0.2) 0%, transparent 50%);
+            animation: bgFloat 20s ease-in-out infinite;
+            z-index: -1;
+        }
+
+        @keyframes bgFloat {
+            0%, 100% { transform: scale(1) rotate(0deg); }
+            50% { transform: scale(1.1) rotate(5deg); }
+        }
+
+        .container {
+            background: rgba(20, 20, 20, 0.8);
+            backdrop-filter: blur(20px);
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 
+                0 8px 32px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            padding: 50px;
+            max-width: 600px;
+            width: 100%;
+            position: relative;
+            margin: 20px auto;
+        }
+
+        h1 {
+            text-align: center;
+            background: linear-gradient(135deg, #fff 0%, #a0a0a0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 40px;
+            font-size: 2.5em;
+            font-weight: 700;
+            letter-spacing: -2px;
+        }
+
+        .back-button {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.8);
+            padding: 10px 20px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .back-button:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .setup-screen, .host-setup, .game-screen {
+            display: none;
+        }
+
+        .setup-screen.active, .host-setup.active, .game-screen.active {
+            display: block;
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            color: rgba(255, 255, 255, 0.7);
+            font-weight: 500;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 16px 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            font-size: 16px;
+            color: #fff;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        input::placeholder, textarea::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(120, 119, 198, 0.5);
+            box-shadow: 0 0 0 4px rgba(120, 119, 198, 0.1);
+        }
+
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 18px;
+            border: none;
+            border-radius: 15px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #7877c6 0%, #ff4d6d 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(120, 119, 198, 0.4);
+        }
+
+        .btn-ready {
+            background: linear-gradient(135deg, #78ff91 0%, #48dbfb 100%);
+            color: #000;
+            font-weight: 700;
+        }
+
+        .btn-ready:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(120, 255, 145, 0.4);
+        }
+
+        .btn-ready:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .connection-status {
+            text-align: center;
+            padding: 12px;
+            margin-bottom: 25px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+        }
+
+        .connection-status.connected {
+            background: rgba(120, 255, 145, 0.1);
+            border: 1px solid rgba(120, 255, 145, 0.3);
+            color: #78ff91;
+        }
+
+        .connection-status.disconnected {
+            background: rgba(255, 77, 109, 0.1);
+            border: 1px solid rgba(255, 77, 109, 0.3);
+            color: #ff4d6d;
+        }
+
+        .timer {
+            text-align: center;
+            font-size: 4em;
+            font-weight: 700;
+            color: #78ff91;
+            margin: 30px 0;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .timer.warning {
+            color: #ff9f40;
+            animation: timerPulse 1s ease-in-out infinite;
+        }
+
+        .timer.critical {
+            color: #ff4d6d;
+            animation: timerPulse 0.5s ease-in-out infinite;
+        }
+
+        @keyframes timerPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .player-list {
+            margin: 25px 0;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .player-list h3 {
+            margin-bottom: 15px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .player-item {
+            padding: 12px 16px;
+            margin: 8px 0;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .player-item.ready {
+            border-color: rgba(120, 255, 145, 0.4);
+            background: rgba(120, 255, 145, 0.1);
+        }
+
+        .player-item.answered {
+            border-color: rgba(72, 219, 251, 0.4);
+            background: rgba(72, 219, 251, 0.1);
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-badge.ready {
+            background: rgba(120, 255, 145, 0.2);
+            color: #78ff91;
+        }
+
+        .status-badge.answered {
+            background: rgba(72, 219, 251, 0.2);
+            color: #48dbfb;
+        }
+
+        .status-badge.waiting {
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        small {
+            color: rgba(255, 255, 255, 0.4);
+            margin-top: 8px;
+            display: block;
+            font-size: 12px;
+        }
+
+        .time-selection {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .time-option {
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s ease;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .time-option:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(120, 119, 198, 0.3);
+        }
+
+        .time-option.selected {
+            background: rgba(120, 119, 198, 0.2);
+            border-color: rgba(120, 119, 198, 0.8);
+            color: #fff;
+        }
+
+        .info-box {
+            background: rgba(72, 219, 251, 0.1);
+            border: 1px solid rgba(72, 219, 251, 0.3);
+            border-radius: 12px;
+            padding: 15px;
+            margin: 20px 0;
+            color: #48dbfb;
+            font-size: 14px;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 30px 20px;
+            }
+
+            h1 {
+                font-size: 2em;
+            }
+
+            .timer {
+                font-size: 3em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="back-button">← Zurück</a>
+        <h1>🎯 Schätzen, schätzen und raten</h1>
+        
+        <div class="connection-status disconnected" id="connectionStatus">
+            Verbinde...
+        </div>
+
+        <!-- Setup Screen -->
+        <div class="setup-screen active" id="setupScreen">
+            <div class="input-group">
+                <label for="roomCode">Raum-Code:</label>
+                <input type="text" id="roomCode" placeholder="gib hier bitte JeansIstGeil ein" maxlength="20">
+                <small>Alle Spieler müssen denselben Code eingeben</small>
+            </div>
+
+            <div class="input-group">
+                <label for="playerName">Dein Name:</label>
+                <input type="text" id="playerName" placeholder="Gib deinen Namen ein du Huan" maxlength="20">
+            </div>
+
+            <button class="btn btn-primary" id="joinButton">Beitreten</button>
+        </div>
+
+        <!-- Host Setup (Zeit einstellen) -->
+        <div class="host-setup" id="hostSetup">
+            <div class="info-box">
+                🎮 Du bist der Host! Wähle die Rundenzeit.
+            </div>
+
+            <div class="input-group">
+                <label>Rundenzeit wählen:</label>
+                <div class="time-selection" id="timeSelection">
+                    <div class="time-option" data-time="10">10 Sek</div>
+                    <div class="time-option" data-time="20">20 Sek</div>
+                    <div class="time-option" data-time="30">30 Sek</div>
+                    <div class="time-option" data-time="40">40 Sek</div>
+                    <div class="time-option" data-time="50">50 Sek</div>
+                    <div class="time-option" data-time="60">60 Sek</div>
+                    <div class="time-option" data-time="90">1:30 Min</div>
+                    <div class="time-option" data-time="120">2 Min</div>
+                    <div class="time-option" data-time="180">3 Min</div>
+                    <div class="time-option" data-time="240">4 Min</div>
+                    <div class="time-option" data-time="300">5 Min</div>
+                    <div class="time-option" data-time="600">10 Min</div>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" id="confirmTimeButton" disabled>Zeit bestätigen</button>
+            
+            <div class="player-list" id="hostPlayerList">
+                <h3>Spieler im Raum:</h3>
+                <div id="hostPlayers"></div>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div class="game-screen" id="gameScreen">
+            <div class="timer" id="timer">--:--</div>
+
+            <div class="input-group">
+                <label for="answer">Deine Antwort:</label>
+                <textarea id="answer" placeholder="Gib deine Antwort hier ein..." maxlength="500"></textarea>
+            </div>
+
+            <button class="btn btn-ready" id="readyButton">Ich bin bereit!</button>
+
+            <div class="player-list" id="playerList">
+                <h3>Spieler:</h3>
+                <div id="players"></div>
+            </div>
+
+            <button class="btn btn-secondary" id="leaveButton">Raum verlassen</button>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        let currentRoom = null;
+        let currentPlayer = null;
+        let isHost = false;
+        let selectedTime = null;
+        let timerInterval = null;
+        let gameStarted = false;
+
+        const setupScreen = document.getElementById('setupScreen');
+        const hostSetup = document.getElementById('hostSetup');
+        const gameScreen = document.getElementById('gameScreen');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const roomCodeInput = document.getElementById('roomCode');
+        const playerNameInput = document.getElementById('playerName');
+        const joinButton = document.getElementById('joinButton');
+        const timeSelection = document.getElementById('timeSelection');
+        const confirmTimeButton = document.getElementById('confirmTimeButton');
+        const readyButton = document.getElementById('readyButton');
+        const leaveButton = document.getElementById('leaveButton');
+        const timerDiv = document.getElementById('timer');
+        const answerInput = document.getElementById('answer');
+        const playersDiv = document.getElementById('players');
+        const hostPlayersDiv = document.getElementById('hostPlayers');
+
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}`;
+            
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                connectionStatus.textContent = 'Verbunden ✓';
+                connectionStatus.className = 'connection-status connected';
+            };
+
+            ws.onclose = () => {
+                connectionStatus.textContent = 'Verbindung verloren - Versuche neu zu verbinden...';
+                connectionStatus.className = 'connection-status disconnected';
+                setTimeout(connectWebSocket, 2000);
+            };
+
+            ws.onerror = () => {
+                connectionStatus.textContent = 'Verbindungsfehler';
+                connectionStatus.className = 'connection-status disconnected';
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleMessage(data);
+            };
+        }
+
+        function handleMessage(data) {
+            switch(data.type) {
+                case 'guessing_joined':
+                    currentRoom = data.room;
+                    currentPlayer = data.playerName;
+                    isHost = data.isHost;
+                    
+                    setupScreen.classList.remove('active');
+                    
+                    if (isHost) {
+                        hostSetup.classList.add('active');
+                    } else {
+                        gameScreen.classList.add('active');
+                        readyButton.disabled = false;
+                    }
+                    break;
+
+                case 'guessing_playerList':
+                    updatePlayerList(data.players);
+                    if (isHost && hostSetup.classList.contains('active')) {
+                        updateHostPlayerList(data.players);
+                    }
+                    break;
+
+                case 'guessing_timeSet':
+                    selectedTime = data.time;
+                    if (!isHost) {
+                        hostSetup.classList.remove('active');
+                        gameScreen.classList.add('active');
+                    }
+                    break;
+
+                case 'guessing_gameStart':
+                    gameStarted = true;
+                    startTimer(data.duration);
+                    answerInput.disabled = false;
+                    readyButton.disabled = true;
+                    if (isHost && hostSetup.classList.contains('active')) {
+                        hostSetup.classList.remove('active');
+                        gameScreen.classList.add('active');
+                    }
+                    break;
+
+                case 'guessing_gameEnd':
+                    gameStarted = false;
+                    stopTimer();
+                    answerInput.disabled = true;
+                    readyButton.disabled = false;
+                    readyButton.textContent = 'Ich bin bereit!';
+                    answerInput.value = '';
+                    break;
+            }
+        }
+
+        function updatePlayerList(players) {
+            playersDiv.innerHTML = '';
+            players.forEach(player => {
+                const div = document.createElement('div');
+                div.className = 'player-item';
+                
+                if (player.answered) {
+                    div.classList.add('answered');
+                } else if (player.ready) {
+                    div.classList.add('ready');
+                }
+                
+                let badge = '<span class="status-badge waiting">⏳ Wartet</span>';
+                if (player.answered) {
+                    badge = '<span class="status-badge answered">✓ Geantwortet</span>';
+                } else if (player.ready) {
+                    badge = '<span class="status-badge ready">✓ Bereit</span>';
+                }
+                
+                div.innerHTML = `
+                    <span>${player.name}${player.isHost ? ' 👑' : ''}</span>
+                    ${badge}
+                `;
+                playersDiv.appendChild(div);
+            });
+        }
+
+        function updateHostPlayerList(players) {
+            hostPlayersDiv.innerHTML = '';
+            players.forEach(player => {
+                const div = document.createElement('div');
+                div.className = 'player-item';
+                
+                div.innerHTML = `
+                    <span>${player.name}${player.isHost ? ' 👑' : ''}</span>
+                    <span class="status-badge waiting">Wartet auf Zeit</span>
+                `;
+                hostPlayersDiv.appendChild(div);
+            });
+        }
+
+        function startTimer(duration) {
+            let timeLeft = duration;
+            updateTimerDisplay(timeLeft);
+            
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                updateTimerDisplay(timeLeft);
+                
+                if (timeLeft <= 10) {
+                    timerDiv.classList.add('critical');
+                } else if (timeLeft <= 30) {
+                    timerDiv.classList.add('warning');
+                }
+                
+                if (timeLeft <= 0) {
+                    stopTimer();
+                }
+            }, 1000);
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            timerDiv.className = 'timer';
+            timerDiv.textContent = '--:--';
+        }
+
+        function updateTimerDisplay(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            timerDiv.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // Join Button
+        joinButton.addEventListener('click', () => {
+            const room = roomCodeInput.value.trim().toUpperCase();
+            const name = playerNameInput.value.trim();
+
+            if (!room || !name) {
+                alert('Bitte Raum-Code und Name eingeben!');
+                return;
+            }
+
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'guessing_join',
+                    room: room,
+                    playerName: name
+                }));
+            }
+        });
+
+        // Time Selection
+        timeSelection.addEventListener('click', (e) => {
+            if (e.target.classList.contains('time-option')) {
+                document.querySelectorAll('.time-option').forEach(opt => {
+                    opt.classList.remove('selected');
+                });
+                e.target.classList.add('selected');
+                selectedTime = parseInt(e.target.dataset.time);
+                confirmTimeButton.disabled = false;
+            }
+        });
+
+        // Confirm Time Button
+        confirmTimeButton.addEventListener('click', () => {
+            if (selectedTime && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'guessing_setTime',
+                    room: currentRoom,
+                    time: selectedTime
+                }));
+                hostSetup.classList.remove('active');
+                gameScreen.classList.add('active');
+            }
+        });
+
+        // Ready Button
+        readyButton.addEventListener('click', () => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'guessing_ready',
+                    room: currentRoom,
+                    playerName: currentPlayer
+                }));
+                readyButton.disabled = true;
+                readyButton.textContent = '✓ Bereit!';
+            }
+        });
+
+        // Answer Input
+        answerInput.addEventListener('input', () => {
+            if (gameStarted && answerInput.value.trim() && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'guessing_answer',
+                    room: currentRoom,
+                    playerName: currentPlayer,
+                    answer: answerInput.value.trim()
+                }));
+            }
+        });
+
+        // Leave Button
+        leaveButton.addEventListener('click', () => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'guessing_leave',
+                    room: currentRoom,
+                    playerName: currentPlayer
+                }));
+            }
+            location.href = 'index.html';
+        });
+
+        // Enter key handlers
+        playerNameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') joinButton.click();
+        });
+
+        roomCodeInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') playerNameInput.focus();
+        });
+
+        connectWebSocket();
+    </script>
+</body>
+</html>

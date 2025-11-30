@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mörlen City Buzzer</title>
+    <title>Mörlen City Games</title>
     <style>
         * {
             margin: 0;
@@ -17,9 +17,8 @@
             min-height: 100vh;
             display: flex;
             justify-content: center;
-            align-items: flex-start;
+            align-items: center;
             padding: 20px;
-            overflow-y: auto;
             overflow-x: hidden;
         }
 
@@ -55,399 +54,67 @@
             padding: 50px;
             max-width: 600px;
             width: 100%;
-            position: relative;
-            margin: 20px auto;
-            max-height: none;
+            text-align: center;
         }
 
         h1 {
-            text-align: center;
             background: linear-gradient(135deg, #fff 0%, #a0a0a0 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            margin-bottom: 40px;
+            margin-bottom: 20px;
             font-size: 3em;
             font-weight: 700;
             letter-spacing: -2px;
         }
 
-        .setup-screen, .game-screen {
-            display: none;
-        }
-
-        .setup-screen.active, .game-screen.active {
-            display: block;
-        }
-
-        .input-group {
-            margin-bottom: 25px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 10px;
-            color: rgba(255, 255, 255, 0.7);
-            font-weight: 500;
-            font-size: 14px;
-            text-transform: uppercase;
+        .subtitle {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 1.2em;
+            margin-bottom: 50px;
             letter-spacing: 1px;
         }
 
-        input {
-            width: 100%;
-            padding: 16px 20px;
-            background: rgba(255, 255, 255, 0.05);
+        .game-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .game-button {
+            padding: 30px;
             border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 15px;
-            font-size: 16px;
-            color: #fff;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            cursor: pointer;
             transition: all 0.3s ease;
+            text-decoration: none;
+            color: white;
+            display: block;
         }
 
-        input::placeholder {
-            color: rgba(255, 255, 255, 0.3);
-        }
-
-        input:focus {
-            outline: none;
+        .game-button:hover {
+            transform: translateY(-5px);
             background: rgba(255, 255, 255, 0.08);
             border-color: rgba(120, 119, 198, 0.5);
-            box-shadow: 0 0 0 4px rgba(120, 119, 198, 0.1);
+            box-shadow: 0 10px 30px rgba(120, 119, 198, 0.3);
         }
 
-        .btn {
-            width: 100%;
-            padding: 18px;
-            border: none;
-            border-radius: 15px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin-top: 10px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #7877c6 0%, #ff4d6d 100%);
-            color: white;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .btn-primary::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            transition: left 0.5s;
-        }
-
-        .btn-primary:hover::before {
-            left: 100%;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(120, 119, 198, 0.4);
-        }
-
-        .btn-primary:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .buzzer-button {
-            width: 100%;
-            height: 250px;
-            border: none;
-            border-radius: 25px;
-            font-size: 48px;
-            font-weight: 900;
-            cursor: pointer;
-            background: linear-gradient(135deg, #ff4d6d 0%, #7877c6 100%);
-            color: white;
-            text-transform: uppercase;
-            letter-spacing: 4px;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 
-                0 20px 60px rgba(255, 77, 109, 0.4),
-                inset 0 1px 0 rgba(255, 255, 255, 0.2);
-            transition: all 0.3s ease;
-        }
-
-        .buzzer-button::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 0;
-            height: 0;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.3);
-            transform: translate(-50%, -50%);
-            transition: width 0.6s, height 0.6s;
-        }
-
-        .buzzer-button:hover:not(:disabled) {
-            transform: scale(1.02);
-            box-shadow: 
-                0 25px 70px rgba(255, 77, 109, 0.5),
-                inset 0 1px 0 rgba(255, 255, 255, 0.2);
-        }
-
-        .buzzer-button:active:not(:disabled)::before {
-            width: 300px;
-            height: 300px;
-        }
-
-        .buzzer-button:disabled {
-            background: linear-gradient(135deg, #444 0%, #222 100%);
-            cursor: not-allowed;
-            box-shadow: none;
-        }
-
-        .status {
-            text-align: center;
-            margin: 25px 0;
-            padding: 20px;
-            border-radius: 15px;
-            font-size: 18px;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-        }
-
-        .status.waiting {
-            background: rgba(72, 219, 251, 0.1);
-            border: 1px solid rgba(72, 219, 251, 0.3);
-            color: #48dbfb;
-        }
-
-        .status.buzzed {
-            background: rgba(255, 159, 64, 0.1);
-            border: 1px solid rgba(255, 159, 64, 0.3);
-            color: #ff9f40;
-        }
-
-        .status.winner {
-            background: rgba(120, 255, 145, 0.15);
-            border: 1px solid rgba(120, 255, 145, 0.4);
-            color: #78ff91;
-            font-size: 24px;
-            animation: winnerPulse 1s ease-in-out infinite;
-        }
-
-        @keyframes winnerPulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
-
-        /* Konfetti Animation für Gewinner */
-        @keyframes confetti {
-            0% { 
-                transform: translateY(0) rotate(0deg);
-                opacity: 1;
-            }
-            100% { 
-                transform: translateY(-100vh) rotate(720deg);
-                opacity: 0;
-            }
-        }
-
-        .confetti {
-            position: fixed;
-            width: 10px;
-            height: 10px;
-            z-index: 1000;
-            pointer-events: none;
-        }
-
-        /* Victory Overlay für Gewinner */
-        .victory-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: radial-gradient(circle, rgba(120, 255, 145, 0.2) 0%, transparent 70%);
-            z-index: 999;
-            pointer-events: none;
-            animation: victoryPulse 2s ease-in-out infinite;
-            opacity: 0;
-        }
-
-        .victory-overlay.active {
-            opacity: 1;
-        }
-
-        @keyframes victoryPulse {
-            0%, 100% { transform: scale(1); opacity: 0.3; }
-            50% { transform: scale(1.1); opacity: 0.6; }
-        }
-
-        /* Shake Animation für Verlierer */
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
-            20%, 40%, 60%, 80% { transform: translateX(5px); }
-        }
-
-        .status.loser {
-            background: rgba(255, 77, 109, 0.1);
-            border: 1px solid rgba(255, 77, 109, 0.3);
-            color: #ff4d6d;
-            animation: shake 0.5s ease-in-out;
-        }
-
-        /* Gewinner Badge Animation */
-        @keyframes badgeBounce {
-            0%, 100% { transform: scale(1) rotate(0deg); }
-            50% { transform: scale(1.2) rotate(10deg); }
-        }
-
-        .winner-badge {
-            display: inline-block;
-            padding: 8px 16px;
-            background: linear-gradient(135deg, #78ff91 0%, #48dbfb 100%);
-            border-radius: 20px;
-            font-weight: bold;
-            font-size: 18px;
-            margin-top: 15px;
-            animation: badgeBounce 1s ease-in-out infinite;
-            box-shadow: 0 5px 20px rgba(120, 255, 145, 0.4);
-        }
-
-        /* Buzzer Button Gewinner-Animation */
-        @keyframes buttonVictory {
-            0% { transform: scale(1); }
-            25% { transform: scale(1.1) rotate(5deg); }
-            50% { transform: scale(1.05) rotate(-5deg); }
-            75% { transform: scale(1.1) rotate(5deg); }
-            100% { transform: scale(1); }
-        }
-
-        .buzzer-button.winner-animation {
-            animation: buttonVictory 0.6s ease-in-out;
-        }
-
-        /* Spotlight Effekt für Gewinner */
-        @keyframes spotlight {
-            0%, 100% { box-shadow: 0 0 30px rgba(120, 255, 145, 0.6), 0 0 60px rgba(120, 255, 145, 0.4); }
-            50% { box-shadow: 0 0 50px rgba(120, 255, 145, 0.8), 0 0 100px rgba(120, 255, 145, 0.6); }
-        }
-
-        .container.winner-spotlight {
-            animation: spotlight 1.5s ease-in-out infinite;
-        }
-
-        .player-list {
-            margin: 25px 0;
-            padding: 20px;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 15px;
-            max-height: 300px;
-            overflow-y: auto;
-        }
-
-        /* Custom Scrollbar für player-list */
-        .player-list::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        .player-list::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 10px;
-        }
-
-        .player-list::-webkit-scrollbar-thumb {
-            background: rgba(120, 119, 198, 0.5);
-            border-radius: 10px;
-        }
-
-        .player-list::-webkit-scrollbar-thumb:hover {
-            background: rgba(120, 119, 198, 0.7);
-        }
-
-        .player-list h3 {
+        .game-button .icon {
+            font-size: 3em;
             margin-bottom: 15px;
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 14px;
-            text-transform: uppercase;
+        }
+
+        .game-button .title {
+            font-size: 1.5em;
+            font-weight: 700;
+            margin-bottom: 10px;
             letter-spacing: 1px;
         }
 
-        .player-item {
-            padding: 12px 16px;
-            margin: 8px 0;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            color: rgba(255, 255, 255, 0.8);
-            transition: all 0.3s ease;
-        }
-
-        .player-item.winner {
-            background: linear-gradient(135deg, rgba(120, 255, 145, 0.2) 0%, rgba(72, 219, 251, 0.2) 100%);
-            border-color: rgba(120, 255, 145, 0.4);
-            color: #78ff91;
-            font-weight: bold;
-            animation: winnerGlow 1.5s ease-in-out infinite;
-        }
-
-        @keyframes winnerGlow {
-            0%, 100% { box-shadow: 0 0 10px rgba(120, 255, 145, 0.2); }
-            50% { box-shadow: 0 0 20px rgba(120, 255, 145, 0.4); }
-        }
-
-        .connection-status {
-            text-align: center;
-            padding: 12px;
-            margin-bottom: 25px;
-            border-radius: 12px;
-            font-weight: 600;
-            font-size: 14px;
-            letter-spacing: 0.5px;
-        }
-
-        .connection-status.connected {
-            background: rgba(120, 255, 145, 0.1);
-            border: 1px solid rgba(120, 255, 145, 0.3);
-            color: #78ff91;
-        }
-
-        .connection-status.disconnected {
-            background: rgba(255, 77, 109, 0.1);
-            border: 1px solid rgba(255, 77, 109, 0.3);
-            color: #ff4d6d;
-        }
-
-        .btn-secondary {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: rgba(255, 255, 255, 0.8);
-        }
-
-        .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.08);
-            border-color: rgba(255, 255, 255, 0.2);
-        }
-
-        small {
-            color: rgba(255, 255, 255, 0.4);
-            margin-top: 8px;
-            display: block;
-            font-size: 12px;
+        .game-button .description {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9em;
         }
 
         @media (max-width: 480px) {
@@ -458,330 +125,27 @@
             h1 {
                 font-size: 2.2em;
             }
-
-            .buzzer-button {
-                height: 180px;
-                font-size: 36px;
-            }
         }
     </style>
 </head>
 <body>
-    <!-- Victory Overlay für Gewinner-Animation -->
-    <div class="victory-overlay" id="victoryOverlay"></div>
-    
-    <div class="container" id="container">
-        <h1>👖 Mörlen City Buzzer</h1>
+    <div class="container">
+        <h1>👖 Mörlen City Games</h1>
+        <p class="subtitle">Wähle dein Spiel</p>
         
-        <div class="connection-status disconnected" id="connectionStatus">
-            Verbinde...
-        </div>
-
-        <!-- Setup Screen -->
-        <div class="setup-screen active" id="setupScreen">
-            <div class="input-group">
-                <label for="roomCode">Raum-Code:</label>
-                <input type="text" id="roomCode" placeholder="Hier Jeans eingeben" maxlength="20">
-                <small style="color: #777; margin-top: 5px; display: block;">
-                    Alle Spieler müssen denselben Code eingeben
-                </small>
-            </div>
-
-            <div class="input-group">
-                <label for="playerName">Dein Name:</label>
-                <input type="text" id="playerName" placeholder="Dein Name du Huan" maxlength="20">
-            </div>
-
-            <button class="btn btn-primary" id="joinButton">Beitreten</button>
-        </div>
-
-        <!-- Game Screen -->
-        <div class="game-screen" id="gameScreen">
-            <div class="status waiting" id="status">
-                Bereit zum Buzzern!
-            </div>
-
-            <button class="buzzer-button" id="buzzerButton">
-                BUZZ!
-            </button>
-
-            <div class="player-list" id="playerList">
-                <h3>Spieler im Raum:</h3>
-                <div id="players"></div>
-            </div>
-
-            <button class="btn btn-secondary" id="resetButton">Zurücksetzen</button>
-            <button class="btn btn-secondary" id="leaveButton" style="margin-top: 10px;">Raum verlassen</button>
+        <div class="game-buttons">
+            <a href="buzzer.html" class="game-button">
+                <div class="icon">⚡</div>
+                <div class="title">Buzzer-App</div>
+                <div class="description">Schnell sein ist alles! Wer drückt zuerst?</div>
+            </a>
+            
+            <a href="schaetzen.html" class="game-button">
+                <div class="icon">🎯</div>
+                <div class="title">Schätzen, schätzen und raten</div>
+                <div class="description">Zeit läuft! Gib deine Antwort ein bevor die Zeit abläuft</div>
+            </a>
         </div>
     </div>
-
-    <script>
-        let ws;
-        let currentRoom = null;
-        let currentPlayer = null;
-        let buzzed = false;
-
-        const setupScreen = document.getElementById('setupScreen');
-        const gameScreen = document.getElementById('gameScreen');
-        const connectionStatus = document.getElementById('connectionStatus');
-        const roomCodeInput = document.getElementById('roomCode');
-        const playerNameInput = document.getElementById('playerName');
-        const joinButton = document.getElementById('joinButton');
-        const buzzerButton = document.getElementById('buzzerButton');
-        const resetButton = document.getElementById('resetButton');
-        const leaveButton = document.getElementById('leaveButton');
-        const statusDiv = document.getElementById('status');
-        const playersDiv = document.getElementById('players');
-        const victoryOverlay = document.getElementById('victoryOverlay');
-        const container = document.getElementById('container');
-
-        // Konfetti-Animation erstellen
-        function createConfetti() {
-            const colors = ['#78ff91', '#48dbfb', '#ff4d6d', '#7877c6', '#ffd700'];
-            const confettiCount = 50;
-            
-            for (let i = 0; i < confettiCount; i++) {
-                const confetti = document.createElement('div');
-                confetti.className = 'confetti';
-                confetti.style.left = Math.random() * 100 + '%';
-                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-                confetti.style.animationDelay = Math.random() * 0.5 + 's';
-                confetti.style.animationDuration = (Math.random() * 2 + 2) + 's';
-                document.body.appendChild(confetti);
-                
-                confetti.style.animation = 'confetti 3s ease-out forwards';
-                
-                setTimeout(() => {
-                    confetti.remove();
-                }, 3000);
-            }
-        }
-
-        // Gewinner-Animation
-        function showWinnerAnimation() {
-            // Konfetti
-            createConfetti();
-            
-            // Victory Overlay
-            victoryOverlay.classList.add('active');
-            
-            // Container Spotlight
-            container.classList.add('winner-spotlight');
-            
-            // Buzzer Button Animation
-            buzzerButton.classList.add('winner-animation');
-            
-            // Nach 3 Sekunden Animationen entfernen
-            setTimeout(() => {
-                victoryOverlay.classList.remove('active');
-                container.classList.remove('winner-spotlight');
-                buzzerButton.classList.remove('winner-animation');
-            }, 3000);
-        }
-
-        // Verlierer-Animation (Shake)
-        function showLoserAnimation(winnerName) {
-            // Status mit Shake-Animation
-            statusDiv.classList.add('loser');
-            
-            setTimeout(() => {
-                statusDiv.classList.remove('loser');
-            }, 500);
-        }
-
-        // Sound-Effekt für Gewinner
-        function playWinnerSound() {
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            
-            // Erstelle einen aufregenden Gewinner-Sound
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            
-            // Frequenzen für einen Fanfare-ähnlichen Sound
-            oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime); // C5
-            oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.1); // E5
-            oscillator.frequency.setValueAtTime(783.99, audioContext.currentTime + 0.2); // G5
-            oscillator.frequency.setValueAtTime(1046.50, audioContext.currentTime + 0.3); // C6
-            
-            oscillator.type = 'sine';
-            
-            // Envelope für natürlicheren Sound
-            gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-            gainNode.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.05);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.8);
-            
-            oscillator.start(audioContext.currentTime);
-            oscillator.stop(audioContext.currentTime + 0.8);
-        }
-
-        function connectWebSocket() {
-            // Für Vercel Deployment: ersetzen Sie dies mit Ihrer WebSocket-URL
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}`;
-            
-            ws = new WebSocket(wsUrl);
-
-            ws.onopen = () => {
-                connectionStatus.textContent = 'Verbunden ✓';
-                connectionStatus.className = 'connection-status connected';
-            };
-
-            ws.onclose = () => {
-                connectionStatus.textContent = 'Verbindung verloren - Versuche neu zu verbinden...';
-                connectionStatus.className = 'connection-status disconnected';
-                setTimeout(connectWebSocket, 2000);
-            };
-
-            ws.onerror = () => {
-                connectionStatus.textContent = 'Verbindungsfehler';
-                connectionStatus.className = 'connection-status disconnected';
-            };
-
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                handleMessage(data);
-            };
-        }
-
-        function handleMessage(data) {
-            switch(data.type) {
-                case 'joined':
-                    currentRoom = data.room;
-                    currentPlayer = data.playerName;
-                    setupScreen.classList.remove('active');
-                    gameScreen.classList.add('active');
-                    updateStatus('Bereit zum Buzzern!', 'waiting');
-                    break;
-
-                case 'playerList':
-                    updatePlayerList(data.players);
-                    break;
-
-                case 'buzz':
-                    if (data.playerName === currentPlayer) {
-                        buzzed = true;
-                        buzzerButton.disabled = true;
-                        updateStatus('Du hast gebuzzert! Warte auf andere...', 'buzzed');
-                    } else {
-                        updateStatus(`${data.playerName} hat gebuzzert!`, 'buzzed');
-                    }
-                    break;
-
-                case 'winner':
-                    buzzerButton.disabled = true;
-                    if (data.winner === currentPlayer) {
-                        playWinnerSound(); // Sound abspielen wenn man gewonnen hat!
-                        showWinnerAnimation(); // Gewinner-Animation zeigen!
-                        updateStatus('🎉 Du warst am schnellsten! 🎉', 'winner');
-                    } else {
-                        showLoserAnimation(data.winner); // Verlierer-Animation zeigen
-                        updateStatus(`${data.winner} war am schnellsten!`, 'winner');
-                    }
-                    break;
-
-                case 'reset':
-                    buzzed = false;
-                    buzzerButton.disabled = false;
-                    updateStatus('Bereit zum Buzzern!', 'waiting');
-                    break;
-            }
-        }
-
-        function updateStatus(text, className) {
-            statusDiv.textContent = text;
-            statusDiv.className = `status ${className}`;
-        }
-
-        function updatePlayerList(players) {
-            playersDiv.innerHTML = '';
-            players.forEach(player => {
-                const div = document.createElement('div');
-                div.className = 'player-item';
-                if (player.buzzed) {
-                    div.classList.add('winner');
-                }
-                div.innerHTML = `
-                    <span>${player.name}</span>
-                    <span>${player.buzzed ? '🔔 GEBUZZERT' : '⏳ Wartet'}</span>
-                `;
-                playersDiv.appendChild(div);
-            });
-        }
-
-        joinButton.addEventListener('click', () => {
-            const room = roomCodeInput.value.trim().toUpperCase();
-            const name = playerNameInput.value.trim();
-
-            if (!room || !name) {
-                alert('Bitte Raum-Code und Name eingeben!');
-                return;
-            }
-
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                    type: 'join',
-                    room: room,
-                    playerName: name
-                }));
-            } else {
-                alert('Keine Verbindung zum Server. Bitte warten...');
-            }
-        });
-
-        buzzerButton.addEventListener('click', () => {
-            if (!buzzed && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                    type: 'buzz',
-                    room: currentRoom,
-                    playerName: currentPlayer
-                }));
-            }
-        });
-
-        resetButton.addEventListener('click', () => {
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                    type: 'reset',
-                    room: currentRoom
-                }));
-            }
-        });
-
-        leaveButton.addEventListener('click', () => {
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                    type: 'leave',
-                    room: currentRoom,
-                    playerName: currentPlayer
-                }));
-            }
-            currentRoom = null;
-            currentPlayer = null;
-            buzzed = false;
-            setupScreen.classList.add('active');
-            gameScreen.classList.remove('active');
-            roomCodeInput.value = '';
-            playerNameInput.value = '';
-        });
-
-        // Enter-Taste für Join
-        playerNameInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                joinButton.click();
-            }
-        });
-
-        roomCodeInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                playerNameInput.focus();
-            }
-        });
-
-        // Verbindung herstellen beim Laden
-        connectWebSocket();
-    </script>
 </body>
 </html>
