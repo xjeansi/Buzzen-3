@@ -106,15 +106,26 @@ function sendGuessingPlayerList(roomCode) {
 
 function checkAllReady(roomCode) {
     const room = guessingRooms.get(roomCode);
-    if (!room || !room.timeSet) return false;
+    if (!room || !room.timeSet) {
+        console.log(`checkAllReady: Room not found or time not set for ${roomCode}`);
+        return false;
+    }
 
     // Prevent multiple countdowns
-    if (room.countdownActive || room.gameActive) return false;
+    if (room.countdownActive || room.gameActive) {
+        console.log(`checkAllReady: Countdown already active (${room.countdownActive}) or game active (${room.gameActive})`);
+        return false;
+    }
 
     const allReady = Array.from(room.players.values()).every(p => p.ready);
+    const readyCount = Array.from(room.players.values()).filter(p => p.ready).length;
+    
+    console.log(`checkAllReady: ${readyCount}/${room.players.size} players ready`);
     
     if (allReady && room.players.size > 0) {
         room.countdownActive = true;
+
+        console.log(`All players ready in ${roomCode}, triggering countdown`);
 
         // Send countdown message
         broadcastToGuessingRoom(roomCode, {
@@ -129,10 +140,11 @@ function checkAllReady(roomCode) {
             }
         });
 
-        console.log(`All players ready in ${roomCode}, starting countdown`);
+        console.log(`Countdown sent, will start game in 5 seconds`);
 
         // Start game after 5 second countdown
         setTimeout(() => {
+            console.log(`5 seconds passed, starting game for ${roomCode}`);
             room.countdownActive = false;
             startGuessingGame(roomCode);
         }, 5000);
@@ -211,13 +223,7 @@ function endGuessingGame(roomCode) {
 
     console.log(`Game ended in ${roomCode}, showing results`);
 
-    // Reset ready and answered states for next round
-    room.players.forEach(p => {
-        p.ready = false;
-        p.answered = false;
-        p.answer = '';
-    });
-
+    // DON'T reset states here - let nextRound handle it
     sendGuessingPlayerList(roomCode);
 }
 
@@ -513,7 +519,12 @@ wss.on('connection', (ws) => {
                 const room = guessingRooms.get(currentGuessingRoom);
                 if (!room) return;
 
-                // Reset all player states for next round
+                console.log(`Next round requested in ${currentGuessingRoom}`);
+
+                // Reset all flags and player states for next round
+                room.countdownActive = false;
+                room.gameActive = false;
+                
                 room.players.forEach(p => {
                     p.ready = false;
                     p.answered = false;
@@ -536,7 +547,7 @@ wss.on('connection', (ws) => {
                 // Send updated player list (all not ready)
                 sendGuessingPlayerList(currentGuessingRoom);
 
-                console.log(`Next round started in ${currentGuessingRoom}`);
+                console.log(`Next round started in ${currentGuessingRoom}, all states reset`);
             }
             else {
                 console.warn('Unknown message type:', message.type);
