@@ -108,9 +108,14 @@ function checkAllReady(roomCode) {
     const room = guessingRooms.get(roomCode);
     if (!room || !room.timeSet) return false;
 
+    // Prevent multiple countdowns
+    if (room.countdownActive || room.gameActive) return false;
+
     const allReady = Array.from(room.players.values()).every(p => p.ready);
     
     if (allReady && room.players.size > 0) {
+        room.countdownActive = true;
+
         // Send countdown message
         broadcastToGuessingRoom(roomCode, {
             type: 'guessing_countdown'
@@ -128,6 +133,7 @@ function checkAllReady(roomCode) {
 
         // Start game after 5 second countdown
         setTimeout(() => {
+            room.countdownActive = false;
             startGuessingGame(roomCode);
         }, 5000);
     }
@@ -375,7 +381,8 @@ wss.on('connection', (ws) => {
                         roundTime: null,
                         timeSet: false,
                         gameActive: false,
-                        gameTimeout: null
+                        gameTimeout: null,
+                        countdownActive: false
                     });
                 } else {
                     console.log('Joining existing guessing room');
@@ -506,6 +513,13 @@ wss.on('connection', (ws) => {
                 const room = guessingRooms.get(currentGuessingRoom);
                 if (!room) return;
 
+                // Reset all player states for next round
+                room.players.forEach(p => {
+                    p.ready = false;
+                    p.answered = false;
+                    p.answer = '';
+                });
+
                 // Notify all players to go back to game screen
                 broadcastToGuessingRoom(currentGuessingRoom, {
                     type: 'guessing_nextRound'
@@ -518,6 +532,9 @@ wss.on('connection', (ws) => {
                         }));
                     }
                 });
+
+                // Send updated player list (all not ready)
+                sendGuessingPlayerList(currentGuessingRoom);
 
                 console.log(`Next round started in ${currentGuessingRoom}`);
             }
