@@ -111,7 +111,25 @@ function checkAllReady(roomCode) {
     const allReady = Array.from(room.players.values()).every(p => p.ready);
     
     if (allReady && room.players.size > 0) {
-        startGuessingGame(roomCode);
+        // Send countdown message
+        broadcastToGuessingRoom(roomCode, {
+            type: 'guessing_countdown'
+        });
+
+        room.clients.forEach(client => {
+            if (client.ws.readyState === 1) {
+                client.ws.send(JSON.stringify({
+                    type: 'guessing_countdown'
+                }));
+            }
+        });
+
+        console.log(`All players ready in ${roomCode}, starting countdown`);
+
+        // Start game after 5 second countdown
+        setTimeout(() => {
+            startGuessingGame(roomCode);
+        }, 5000);
     }
 }
 
@@ -163,22 +181,35 @@ function endGuessingGame(roomCode) {
 
     room.gameActive = false;
     
-    // Reset ready and answered states
-    room.players.forEach(p => {
-        p.ready = false;
-        p.answered = false;
-    });
+    // Collect all answers
+    const results = Array.from(room.players.values()).map(p => ({
+        name: p.name,
+        answer: p.answer || '',
+        isHost: p.isHost
+    }));
 
+    // Send results to all players
     broadcastToGuessingRoom(roomCode, {
-        type: 'guessing_gameEnd'
+        type: 'guessing_gameEnd',
+        results: results
     });
 
     room.clients.forEach(client => {
         if (client.ws.readyState === 1) {
             client.ws.send(JSON.stringify({
-                type: 'guessing_gameEnd'
+                type: 'guessing_gameEnd',
+                results: results
             }));
         }
+    });
+
+    console.log(`Game ended in ${roomCode}, showing results`);
+
+    // Reset ready and answered states for next round
+    room.players.forEach(p => {
+        p.ready = false;
+        p.answered = false;
+        p.answer = '';
     });
 
     sendGuessingPlayerList(roomCode);
@@ -467,6 +498,28 @@ wss.on('connection', (ws) => {
                 console.log(`${currentPlayer} left guessing room ${currentGuessingRoom}`);
                 currentGuessingRoom = null;
                 currentPlayer = null;
+            }
+            
+            else if (message.type === 'guessing_nextRound') {
+                if (!currentGuessingRoom) return;
+
+                const room = guessingRooms.get(currentGuessingRoom);
+                if (!room) return;
+
+                // Notify all players to go back to game screen
+                broadcastToGuessingRoom(currentGuessingRoom, {
+                    type: 'guessing_nextRound'
+                });
+
+                room.clients.forEach(client => {
+                    if (client.ws.readyState === 1) {
+                        client.ws.send(JSON.stringify({
+                            type: 'guessing_nextRound'
+                        }));
+                    }
+                });
+
+                console.log(`Next round started in ${currentGuessingRoom}`);
             }
             else {
                 console.warn('Unknown message type:', message.type);
