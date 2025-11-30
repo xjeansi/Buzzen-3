@@ -193,9 +193,11 @@ wss.on('connection', (ws) => {
     ws.on('message', (data) => {
         try {
             const message = JSON.parse(data);
+            console.log('Received message:', message.type, message);
             
             // BUZZER GAME HANDLERS
             if (message.type === 'join') {
+                console.log('Processing BUZZER join');
                 const roomCode = message.room.toUpperCase();
                 const playerName = message.playerName;
 
@@ -324,12 +326,15 @@ wss.on('connection', (ws) => {
 
             // GUESSING GAME HANDLERS
             else if (message.type === 'guessing_join') {
+                console.log('Processing GUESSING join');
                 const roomCode = message.room.toUpperCase();
                 const playerName = message.playerName;
+                console.log(`Room: ${roomCode}, Player: ${playerName}`);
 
                 let isHost = false;
                 if (!guessingRooms.has(roomCode)) {
                     isHost = true;
+                    console.log('Creating new guessing room, player is host');
                     guessingRooms.set(roomCode, {
                         code: roomCode,
                         players: new Map(),
@@ -339,6 +344,8 @@ wss.on('connection', (ws) => {
                         gameActive: false,
                         gameTimeout: null
                     });
+                } else {
+                    console.log('Joining existing guessing room');
                 }
 
                 const room = guessingRooms.get(roomCode);
@@ -353,12 +360,15 @@ wss.on('connection', (ws) => {
                 currentGuessingRoom = roomCode;
                 currentPlayer = playerName;
 
-                ws.send(JSON.stringify({
+                const response = {
                     type: 'guessing_joined',
                     room: roomCode,
                     playerName: playerName,
                     isHost: isHost
-                }));
+                };
+                console.log('Sending response:', response);
+
+                ws.send(JSON.stringify(response));
 
                 sendGuessingPlayerList(roomCode);
                 console.log(`${playerName} joined guessing room ${roomCode} (host: ${isHost})`);
