@@ -507,7 +507,8 @@
                     } else {
                         console.log('I am not host, showing game screen');
                         gameScreen.classList.add('active');
-                        readyButton.disabled = false;
+                        // Ready button will be enabled either now or when time is set
+                        // We'll wait for guessing_timeSet message to enable it
                     }
                     break;
 
@@ -519,11 +520,17 @@
                     break;
 
                 case 'guessing_timeSet':
+                    console.log('Time set to:', data.time);
                     selectedTime = data.time;
-                    if (!isHost) {
+                    
+                    // Both host and non-host should see game screen after time is set
+                    if (hostSetup.classList.contains('active')) {
                         hostSetup.classList.remove('active');
                         gameScreen.classList.add('active');
                     }
+                    
+                    // Enable ready button now that time is set
+                    readyButton.disabled = false;
                     break;
 
                 case 'guessing_gameStart':
@@ -640,31 +647,31 @@
             console.log('WebSocket object:', ws);
 
             if (ws.readyState === WebSocket.OPEN) {
-                const message = {
-                    type: 'guessing_join',
-                    room: room,
-                    playerName: name
-                };
-                console.log('Sending message:', message);
-                console.log('Stringified:', JSON.stringify(message));
+                // FIRST: Send test buzzer message
+                console.log('Test 1: Sending buzzer message first...');
+                ws.send(JSON.stringify({
+                    type: 'join',
+                    room: 'TESTBUZZER',
+                    playerName: 'TestUser1'
+                }));
                 
-                try {
-                    ws.send(JSON.stringify(message));
-                    console.log('Message sent successfully');
+                // THEN: Send guessing join after 2 seconds
+                setTimeout(() => {
+                    const message = {
+                        type: 'guessing_join',
+                        room: room,
+                        playerName: name
+                    };
+                    console.log('Test 2: Now sending guessing_join:', message);
+                    console.log('Stringified:', JSON.stringify(message));
                     
-                    // Test: Try to send a simple buzzer join to see if it works
-                    setTimeout(() => {
-                        console.log('Sending test buzzer message...');
-                        ws.send(JSON.stringify({
-                            type: 'join',
-                            room: 'TEST',
-                            playerName: 'TestBuzzer'
-                        }));
-                    }, 1000);
-                } catch (error) {
-                    console.error('Error sending message:', error);
-                    alert('Fehler beim Senden: ' + error.message);
-                }
+                    try {
+                        ws.send(JSON.stringify(message));
+                        console.log('guessing_join sent successfully');
+                    } catch (error) {
+                        console.error('Error sending guessing_join:', error);
+                    }
+                }, 2000);
             } else {
                 alert('Keine Verbindung zum Server. Bitte warten und erneut versuchen...');
                 console.error('WebSocket not open. State:', ws.readyState);
