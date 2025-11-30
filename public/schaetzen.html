@@ -339,6 +339,101 @@
             font-size: 14px;
         }
 
+        /* Countdown Modal */
+        .countdown-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .countdown-modal.active {
+            display: flex;
+        }
+
+        .countdown-content {
+            text-align: center;
+            padding: 50px;
+            background: rgba(20, 20, 20, 0.95);
+            border-radius: 30px;
+            border: 2px solid rgba(120, 119, 198, 0.5);
+        }
+
+        .countdown-number {
+            font-size: 8em;
+            font-weight: 900;
+            color: #78ff91;
+            animation: countdownPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes countdownPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .countdown-text {
+            font-size: 1.5em;
+            color: rgba(255, 255, 255, 0.8);
+            margin-top: 20px;
+        }
+
+        /* Results Screen */
+        .results-screen {
+            display: none;
+        }
+
+        .results-screen.active {
+            display: block;
+        }
+
+        .results-list {
+            margin: 25px 0;
+        }
+
+        .result-item {
+            padding: 20px;
+            margin: 15px 0;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+        }
+
+        .result-player {
+            font-size: 1.2em;
+            font-weight: 700;
+            color: #78ff91;
+            margin-bottom: 10px;
+        }
+
+        .result-answer {
+            color: rgba(255, 255, 255, 0.8);
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            border-left: 3px solid rgba(72, 219, 251, 0.5);
+        }
+
+        .btn-submit {
+            background: linear-gradient(135deg, #48dbfb 0%, #7877c6 100%);
+            color: white;
+        }
+
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(72, 219, 251, 0.4);
+        }
+
+        .btn-submit:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
         @media (max-width: 480px) {
             .container {
                 padding: 30px 20px;
@@ -355,6 +450,14 @@
     </style>
 </head>
 <body>
+    <!-- Countdown Modal -->
+    <div class="countdown-modal" id="countdownModal">
+        <div class="countdown-content">
+            <div class="countdown-number" id="countdownNumber">5</div>
+            <div class="countdown-text">Die Runde startet...</div>
+        </div>
+    </div>
+
     <div class="container">
         <a href="index.html" class="back-button">← Zurück</a>
         <h1>🎯 Schätzen, schätzen und raten</h1>
@@ -420,6 +523,7 @@
                 <textarea id="answer" placeholder="Gib deine Antwort hier ein..." maxlength="500"></textarea>
             </div>
 
+            <button class="btn btn-submit" id="submitButton" disabled>Antwort abschicken</button>
             <button class="btn btn-ready" id="readyButton">Ich bin bereit!</button>
 
             <div class="player-list" id="playerList">
@@ -428,6 +532,16 @@
             </div>
 
             <button class="btn btn-secondary" id="leaveButton">Raum verlassen</button>
+        </div>
+
+        <!-- Results Screen -->
+        <div class="results-screen" id="resultsScreen">
+            <h2 style="color: #78ff91; text-align: center; margin-bottom: 30px;">📊 Ergebnisse</h2>
+            
+            <div class="results-list" id="resultsList"></div>
+
+            <button class="btn btn-primary" id="nextRoundButton">Nächste Runde</button>
+            <button class="btn btn-secondary" id="leaveFromResultsButton">Raum verlassen</button>
         </div>
     </div>
 
@@ -439,10 +553,12 @@
         let selectedTime = null;
         let timerInterval = null;
         let gameStarted = false;
+        let countdownInterval = null;
 
         const setupScreen = document.getElementById('setupScreen');
         const hostSetup = document.getElementById('hostSetup');
         const gameScreen = document.getElementById('gameScreen');
+        const resultsScreen = document.getElementById('resultsScreen');
         const connectionStatus = document.getElementById('connectionStatus');
         const roomCodeInput = document.getElementById('roomCode');
         const playerNameInput = document.getElementById('playerName');
@@ -450,11 +566,17 @@
         const timeSelection = document.getElementById('timeSelection');
         const confirmTimeButton = document.getElementById('confirmTimeButton');
         const readyButton = document.getElementById('readyButton');
+        const submitButton = document.getElementById('submitButton');
+        const nextRoundButton = document.getElementById('nextRoundButton');
         const leaveButton = document.getElementById('leaveButton');
+        const leaveFromResultsButton = document.getElementById('leaveFromResultsButton');
         const timerDiv = document.getElementById('timer');
         const answerInput = document.getElementById('answer');
         const playersDiv = document.getElementById('players');
         const hostPlayersDiv = document.getElementById('hostPlayers');
+        const countdownModal = document.getElementById('countdownModal');
+        const countdownNumber = document.getElementById('countdownNumber');
+        const resultsList = document.getElementById('resultsList');
 
         function connectWebSocket() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -519,6 +641,11 @@
                     }
                     break;
 
+                case 'guessing_countdown':
+                    console.log('Starting countdown!');
+                    showCountdown();
+                    break;
+
                 case 'guessing_timeSet':
                     console.log('Time set to:', data.time);
                     selectedTime = data.time;
@@ -537,7 +664,9 @@
                     gameStarted = true;
                     startTimer(data.duration);
                     answerInput.disabled = false;
+                    submitButton.disabled = false;
                     readyButton.disabled = true;
+                    readyButton.style.display = 'none';
                     if (isHost && hostSetup.classList.contains('active')) {
                         hostSetup.classList.remove('active');
                         gameScreen.classList.add('active');
@@ -545,12 +674,27 @@
                     break;
 
                 case 'guessing_gameEnd':
+                    console.log('Game ended, showing results');
                     gameStarted = false;
                     stopTimer();
                     answerInput.disabled = true;
+                    submitButton.disabled = true;
+                    if (data.results) {
+                        showResults(data.results);
+                    }
+                    break;
+
+                case 'guessing_nextRound':
+                    console.log('Next round starting');
+                    resultsScreen.classList.remove('active');
+                    gameScreen.classList.add('active');
                     readyButton.disabled = false;
+                    readyButton.style.display = 'block';
                     readyButton.textContent = 'Ich bin bereit!';
+                    submitButton.style.display = 'block';
                     answerInput.value = '';
+                    answerInput.disabled = true;
+                    submitButton.disabled = true;
                     break;
             }
         }
@@ -629,6 +773,41 @@
             const mins = Math.floor(seconds / 60);
             const secs = seconds % 60;
             timerDiv.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // Countdown before game starts
+        function showCountdown() {
+            let count = 5;
+            countdownNumber.textContent = count;
+            countdownModal.classList.add('active');
+            
+            countdownInterval = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    countdownNumber.textContent = count;
+                } else {
+                    clearInterval(countdownInterval);
+                    countdownModal.classList.remove('active');
+                }
+            }, 1000);
+        }
+
+        // Show results
+        function showResults(results) {
+            console.log('Showing results:', results);
+            gameScreen.classList.remove('active');
+            resultsScreen.classList.add('active');
+            
+            resultsList.innerHTML = '';
+            results.forEach(result => {
+                const div = document.createElement('div');
+                div.className = 'result-item';
+                div.innerHTML = `
+                    <div class="result-player">${result.name}${result.isHost ? ' 👑' : ''}</div>
+                    <div class="result-answer">${result.answer || '<em style="color: rgba(255,255,255,0.4);">Keine Antwort</em>'}</div>
+                `;
+                resultsList.appendChild(div);
+            });
         }
 
         // Join Button
@@ -716,16 +895,47 @@
             }
         });
 
-        // Answer Input
-        answerInput.addEventListener('input', () => {
-            if (gameStarted && answerInput.value.trim() && ws.readyState === WebSocket.OPEN) {
+        // Submit Answer Button
+        submitButton.addEventListener('click', () => {
+            const answer = answerInput.value.trim();
+            if (!answer) {
+                alert('Bitte gib eine Antwort ein!');
+                return;
+            }
+            
+            if (gameStarted && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
                     type: 'guessing_answer',
                     room: currentRoom,
                     playerName: currentPlayer,
-                    answer: answerInput.value.trim()
+                    answer: answer
+                }));
+                submitButton.disabled = true;
+                submitButton.textContent = '✓ Abgeschickt!';
+                answerInput.disabled = true;
+            }
+        });
+
+        // Next Round Button
+        nextRoundButton.addEventListener('click', () => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'guessing_nextRound',
+                    room: currentRoom
                 }));
             }
+        });
+
+        // Leave Button (from results)
+        leaveFromResultsButton.addEventListener('click', () => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'guessing_leave',
+                    room: currentRoom,
+                    playerName: currentPlayer
+                }));
+            }
+            location.href = 'index.html';
         });
 
         // Leave Button
