@@ -192,8 +192,10 @@ wss.on('connection', (ws) => {
 
     ws.on('message', (data) => {
         try {
+            console.log('Raw data received:', data.toString());
             const message = JSON.parse(data);
-            console.log('Received message:', message.type, message);
+            console.log('Parsed message:', JSON.stringify(message, null, 2));
+            console.log('Message type:', message.type);
             
             // BUZZER GAME HANDLERS
             if (message.type === 'join') {
@@ -457,9 +459,14 @@ wss.on('connection', (ws) => {
                 currentGuessingRoom = null;
                 currentPlayer = null;
             }
+            else {
+                console.warn('Unknown message type:', message.type);
+                console.log('Full message:', message);
+            }
             
         } catch (error) {
             console.error('Error handling message:', error);
+            console.error('Raw data that caused error:', data.toString());
         }
     });
 
