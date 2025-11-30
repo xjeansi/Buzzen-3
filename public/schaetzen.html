@@ -804,16 +804,29 @@
 
         // Countdown before game starts
         function showCountdown() {
+            // Clear any existing countdown first
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+            }
+            
             let count = 5;
             countdownNumber.textContent = count;
             countdownModal.classList.add('active');
             
+            console.log('Countdown starting from 5...');
+            
             countdownInterval = setInterval(() => {
                 count--;
+                console.log('Countdown:', count);
+                
                 if (count > 0) {
                     countdownNumber.textContent = count;
                 } else {
+                    // Countdown finished
+                    console.log('Countdown finished, hiding modal');
                     clearInterval(countdownInterval);
+                    countdownInterval = null;
                     countdownModal.classList.remove('active');
                 }
             }, 1000);
