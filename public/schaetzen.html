@@ -637,6 +637,7 @@
             }
 
             console.log('WebSocket state:', ws.readyState);
+            console.log('WebSocket object:', ws);
 
             if (ws.readyState === WebSocket.OPEN) {
                 const message = {
@@ -645,7 +646,25 @@
                     playerName: name
                 };
                 console.log('Sending message:', message);
-                ws.send(JSON.stringify(message));
+                console.log('Stringified:', JSON.stringify(message));
+                
+                try {
+                    ws.send(JSON.stringify(message));
+                    console.log('Message sent successfully');
+                    
+                    // Test: Try to send a simple buzzer join to see if it works
+                    setTimeout(() => {
+                        console.log('Sending test buzzer message...');
+                        ws.send(JSON.stringify({
+                            type: 'join',
+                            room: 'TEST',
+                            playerName: 'TestBuzzer'
+                        }));
+                    }, 1000);
+                } catch (error) {
+                    console.error('Error sending message:', error);
+                    alert('Fehler beim Senden: ' + error.message);
+                }
             } else {
                 alert('Keine Verbindung zum Server. Bitte warten und erneut versuchen...');
                 console.error('WebSocket not open. State:', ws.readyState);
