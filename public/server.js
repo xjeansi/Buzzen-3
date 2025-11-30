@@ -521,7 +521,12 @@ wss.on('connection', (ws) => {
 const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
+    console.log(`========================================`);
     console.log(`Server running on port ${PORT}`);
+    console.log(`Version: 2.0 - Multi-Game Support`);
+    console.log(`Updated: ${new Date().toISOString()}`);
     console.log(`Buzzer Game: /buzzer.html`);
     console.log(`Guessing Game: /schaetzen.html`);
+    console.log(`Guessing handlers: ENABLED`);
+    console.log(`========================================`);
 });
