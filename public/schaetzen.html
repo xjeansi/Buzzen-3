@@ -643,6 +643,9 @@
 
                 case 'guessing_countdown':
                     console.log('Starting countdown!');
+                    // Ensure any old timer is stopped before countdown
+                    stopTimer();
+                    gameStarted = false;
                     showCountdown();
                     break;
 
@@ -661,12 +664,21 @@
                     break;
 
                 case 'guessing_gameStart':
+                    console.log('Game starting!');
+                    
+                    // Ensure any old timer is stopped first
+                    if (timerInterval) {
+                        clearInterval(timerInterval);
+                        timerInterval = null;
+                    }
+                    
                     gameStarted = true;
                     startTimer(data.duration);
                     answerInput.disabled = false;
                     submitButton.disabled = false;
                     readyButton.disabled = true;
                     readyButton.style.display = 'none';
+                    
                     if (isHost && hostSetup.classList.contains('active')) {
                         hostSetup.classList.remove('active');
                         gameScreen.classList.add('active');
@@ -676,9 +688,13 @@
                 case 'guessing_gameEnd':
                     console.log('Game ended, showing results');
                     gameStarted = false;
+                    
+                    // Stop timer completely
                     stopTimer();
+                    
                     answerInput.disabled = true;
                     submitButton.disabled = true;
+                    
                     if (data.results) {
                         showResults(data.results);
                     }
@@ -686,6 +702,11 @@
 
                 case 'guessing_nextRound':
                     console.log('Next round starting');
+                    
+                    // Ensure timer is completely stopped
+                    stopTimer();
+                    gameStarted = false;
+                    
                     resultsScreen.classList.remove('active');
                     gameScreen.classList.add('active');
                     
@@ -772,6 +793,7 @@
             }
             timerDiv.className = 'timer';
             timerDiv.textContent = '--:--';
+            console.log('Timer stopped and reset');
         }
 
         function updateTimerDisplay(seconds) {
