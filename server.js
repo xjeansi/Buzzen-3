@@ -372,6 +372,15 @@ wss.on('connection', (ws) => {
 
                 ws.send(JSON.stringify(response));
 
+                // If time is already set, inform the new player
+                if (room.timeSet && room.roundTime) {
+                    console.log(`Informing ${playerName} that time is already set to ${room.roundTime}s`);
+                    ws.send(JSON.stringify({
+                        type: 'guessing_timeSet',
+                        time: room.roundTime
+                    }));
+                }
+
                 sendGuessingPlayerList(roomCode);
                 console.log(`${playerName} joined guessing room ${roomCode} (host: ${isHost})`);
             }
