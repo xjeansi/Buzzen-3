@@ -134,6 +134,12 @@
             font-family: inherit;
         }
 
+        select option {
+            background: #2a2a2a;
+            color: #fff;
+            padding: 10px;
+        }
+
         input::placeholder {
             color: rgba(255, 255, 255, 0.3);
         }
@@ -173,6 +179,39 @@
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.1);
             color: rgba(255, 255, 255, 0.8);
+        }
+
+        .btn-confirm {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #78ff91 0%, #48dbfb 100%);
+            color: #000;
+            padding: 15px 40px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            z-index: 1001;
+            box-shadow: 0 4px 20px rgba(120, 255, 145, 0.4);
+            transition: all 0.3s ease;
+            display: none;
+        }
+
+        .btn-confirm.active {
+            display: block;
+        }
+
+        .btn-confirm:hover {
+            transform: translateX(-50%) translateY(-2px);
+            box-shadow: 0 6px 30px rgba(120, 255, 145, 0.6);
+        }
+
+        .btn-confirm:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
 
         .connection-status {
@@ -492,6 +531,8 @@
 
         <div id="map"></div>
 
+        <button class="btn-confirm" id="confirmButton">Punkt bestätigen ✓</button>
+
         <div class="map-instructions" id="mapInstructions">
             Klicke auf die Karte, um einen Punkt zu setzen!
         </div>
@@ -529,12 +570,15 @@
         let playerMarkers = {};
         let gameActive = false;
         let timerInterval = null;
+        let markerPlaced = false;
+        let markerConfirmed = false;
 
         const setupScreen = document.getElementById('setupScreen');
         const hostSetup = document.getElementById('hostSetup');
         const gameContainer = document.getElementById('gameContainer');
         const connectionStatus = document.getElementById('connectionStatus');
         const container = document.querySelector('.container');
+        const confirmButton = document.getElementById('confirmButton');
         
         // WebSocket connection
         function connectWebSocket() {
@@ -604,7 +648,12 @@
                     break;
 
                 case 'geo_roundStart':
-                    startRound(data.roundNumber, data.duration);
+                    startRound(data.roundNumber, data.duration, data.moderatorPhase);
+                    break;
+
+                case 'geo_playerPhaseStart':
+                    // When moderator confirms, players can now place
+                    startRound(data.roundNumber, data.duration, false);
                     break;
 
                 case 'geo_playerPlaced':
@@ -646,6 +695,7 @@
 
         function onMapClick(e) {
             if (!gameActive) return;
+            if (markerConfirmed) return; // Can't change after confirming
 
             const lat = e.latlng.lat;
             const lng = e.latlng.lng;
@@ -667,25 +717,23 @@
                 })
             }).addTo(map);
 
-            // Send to server
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                    type: 'geo_placeMarker',
-                    room: currentRoom,
-                    playerName: currentPlayer,
-                    lat: lat,
-                    lng: lng
-                }));
-            }
+            markerPlaced = true;
+            
+            // Show confirm button
+            confirmButton.classList.add('active');
+            confirmButton.disabled = false;
 
-            document.getElementById('statusBadge').textContent = '✓ Gesetzt!';
-            document.getElementById('statusBadge').className = 'status-badge placed';
+            // Update instructions
+            document.getElementById('mapInstructions').textContent = 
+                'Klicke "Punkt bestätigen" oder setze einen neuen Punkt!';
         }
 
-        function startRound(roundNumber, duration) {
+        function startRound(roundNumber, duration, moderatorPhase) {
+            console.log('Starting round', roundNumber, 'moderatorPhase:', moderatorPhase);
+            
             gameActive = true;
-            document.getElementById('mapInstructions').textContent = 
-                isModerator ? 'Setze deinen Punkt (Spieler sehen diesen nicht)!' : 'Klicke auf die Karte!';
+            markerPlaced = false;
+            markerConfirmed = false;
             
             // Clear old markers
             if (myMarker) map.removeLayer(myMarker);
@@ -697,27 +745,61 @@
 
             document.getElementById('statusBadge').textContent = 'Warte...';
             document.getElementById('statusBadge').className = 'status-badge waiting';
+            confirmButton.classList.remove('active');
 
-            // Start timer
-            let timeLeft = duration;
-            updateTimerDisplay(timeLeft);
-            
-            timerInterval = setInterval(() => {
-                timeLeft--;
-                updateTimerDisplay(timeLeft);
+            if (moderatorPhase && isModerator) {
+                // Moderator phase: no timer, just wait for confirmation
+                document.getElementById('mapInstructions').textContent = 
+                    'Du bist Moderator: Setze deinen Punkt (unbegrenzte Zeit)';
+                document.getElementById('timer').textContent = '∞';
+                document.getElementById('timer').className = 'timer';
+            } else if (moderatorPhase && !isModerator) {
+                // Players wait for moderator
+                gameActive = false;
+                document.getElementById('mapInstructions').textContent = 
+                    'Warte auf Moderator...';
+                document.getElementById('timer').textContent = '--:--';
+            } else {
+                // Player phase: timer runs
+                document.getElementById('mapInstructions').textContent = 
+                    isModerator ? 'Spieler setzen jetzt ihre Punkte...' : 'Klicke auf die Karte!';
                 
-                const timerEl = document.getElementById('timer');
-                if (timeLeft <= 10) {
-                    timerEl.className = 'timer critical';
-                } else if (timeLeft <= 30) {
-                    timerEl.className = 'timer warning';
+                // Start timer (moderator doesn't place in this phase)
+                if (!isModerator) {
+                    let timeLeft = duration;
+                    updateTimerDisplay(timeLeft);
+                    
+                    timerInterval = setInterval(() => {
+                        timeLeft--;
+                        updateTimerDisplay(timeLeft);
+                        
+                        const timerEl = document.getElementById('timer');
+                        if (timeLeft <= 10) {
+                            timerEl.className = 'timer critical';
+                        } else if (timeLeft <= 30) {
+                            timerEl.className = 'timer warning';
+                        }
+                        
+                        if (timeLeft <= 0) {
+                            clearInterval(timerInterval);
+                            gameActive = false;
+                        }
+                    }, 1000);
+                } else {
+                    // Moderator just sees timer for players
+                    let timeLeft = duration;
+                    updateTimerDisplay(timeLeft);
+                    
+                    timerInterval = setInterval(() => {
+                        timeLeft--;
+                        updateTimerDisplay(timeLeft);
+                        
+                        if (timeLeft <= 0) {
+                            clearInterval(timerInterval);
+                        }
+                    }, 1000);
                 }
-                
-                if (timeLeft <= 0) {
-                    clearInterval(timerInterval);
-                    gameActive = false;
-                }
-            }, 1000);
+            }
         }
 
         function updateTimerDisplay(seconds) {
@@ -867,6 +949,33 @@
             if (confirm('Spiel wirklich beenden?')) {
                 location.href = 'index.html';
             }
+        });
+
+        // Confirm marker button
+        confirmButton.addEventListener('click', () => {
+            if (!markerPlaced || !myMarker) return;
+            
+            markerConfirmed = true;
+            confirmButton.disabled = true;
+            confirmButton.textContent = '✓ Bestätigt!';
+            
+            const latlng = myMarker.getLatLng();
+            
+            // Send to server
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'geo_confirmMarker',
+                    room: currentRoom,
+                    playerName: currentPlayer,
+                    lat: latlng.lat,
+                    lng: latlng.lng
+                }));
+            }
+
+            document.getElementById('statusBadge').textContent = '✓ Bestätigt!';
+            document.getElementById('statusBadge').className = 'status-badge placed';
+            document.getElementById('mapInstructions').textContent = 
+                isModerator ? 'Punkt gesetzt! Spieler sind jetzt dran...' : 'Punkt bestätigt! Warte auf andere...';
         });
 
         // Connect on load
