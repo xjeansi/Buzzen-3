@@ -214,6 +214,37 @@
             cursor: not-allowed;
         }
 
+        .btn-toggle-results {
+            position: absolute;
+            top: 80px;
+            left: 20px;
+            background: rgba(20, 20, 20, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 12px 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            z-index: 1002;
+            transition: all 0.3s ease;
+            display: none;
+        }
+
+        .btn-toggle-results.active {
+            display: block;
+        }
+
+        .btn-toggle-results:hover {
+            background: rgba(30, 30, 30, 0.98);
+            transform: translateY(-2px);
+        }
+
+        .results-container.minimized {
+            display: none !important;
+        }
+
         .connection-status {
             text-align: center;
             padding: 10px;
@@ -533,6 +564,10 @@
 
         <button class="btn-confirm" id="confirmButton">Punkt bestätigen ✓</button>
 
+        <button class="btn-toggle-results" id="toggleResultsButton">
+            📊 Ergebnisse ein/ausblenden
+        </button>
+
         <div class="map-instructions" id="mapInstructions">
             Klicke auf die Karte, um einen Punkt zu setzen!
         </div>
@@ -579,6 +614,8 @@
         const connectionStatus = document.getElementById('connectionStatus');
         const container = document.querySelector('.container');
         const confirmButton = document.getElementById('confirmButton');
+        const toggleResultsButton = document.getElementById('toggleResultsButton');
+        const resultsContainer = document.getElementById('resultsContainer');
         
         // WebSocket connection
         function connectWebSocket() {
@@ -648,11 +685,15 @@
                     break;
 
                 case 'geo_roundStart':
+                    // Hide results from previous round
+                    document.getElementById('resultsContainer').style.display = 'none';
+                    confirmButton.textContent = 'Punkt bestätigen ✓';
                     startRound(data.roundNumber, data.duration, data.moderatorPhase);
                     break;
 
                 case 'geo_playerPhaseStart':
                     // When moderator confirms, players can now place
+                    document.getElementById('resultsContainer').style.display = 'none';
                     startRound(data.roundNumber, data.duration, false);
                     break;
 
@@ -681,10 +722,11 @@
                 attributionControl: false
             }).setView([20, 0], 2);
 
-            // Add OpenStreetMap tiles without labels
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            // Use CartoDB tiles without labels (shows only geography)
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
                 maxZoom: 18,
-                minZoom: 2
+                minZoom: 2,
+                subdomains: 'abcd'
             }).addTo(map);
 
             // Set up click handler
@@ -834,6 +876,9 @@
             gameActive = false;
             clearInterval(timerInterval);
             
+            // Show toggle button
+            toggleResultsButton.classList.add('active');
+            
             // Show moderator marker
             if (moderatorPoint) {
                 moderatorMarker = L.marker([moderatorPoint.lat, moderatorPoint.lng], {
@@ -878,7 +923,8 @@
                 resultsDiv.appendChild(div);
             });
 
-            document.getElementById('resultsContainer').style.display = 'block';
+            resultsContainer.style.display = 'block';
+            resultsContainer.classList.remove('minimized');
             
             // Only moderator sees next round button
             document.getElementById('nextRoundButton').style.display = isModerator ? 'block' : 'none';
@@ -976,6 +1022,11 @@
             document.getElementById('statusBadge').className = 'status-badge placed';
             document.getElementById('mapInstructions').textContent = 
                 isModerator ? 'Punkt gesetzt! Spieler sind jetzt dran...' : 'Punkt bestätigt! Warte auf andere...';
+        });
+
+        // Toggle results visibility
+        toggleResultsButton.addEventListener('click', () => {
+            resultsContainer.classList.toggle('minimized');
         });
 
         // Connect on load
