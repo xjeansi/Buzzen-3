@@ -820,30 +820,23 @@ wss.on('connection', (ws) => {
                 player.point = { lat: message.lat, lng: message.lng };
 
                 if (player.isModerator) {
-                    // Moderator confirmed - start countdown, then player phase
+                    // Moderator confirmed - start player phase immediately
                     room.moderatorPoint = player.point;
                     room.moderatorPhase = false;
 
-                    console.log(`Moderator confirmed point, broadcasting countdown in ${currentGeoRoom}`);
+                    console.log(`Moderator confirmed point, starting player phase immediately in ${currentGeoRoom}`);
 
-                    // Broadcast countdown to all players
+                    // Start player phase immediately (no countdown)
                     broadcastToGeoRoom(currentGeoRoom, {
-                        type: 'geo_countdown'
+                        type: 'geo_playerPhaseStart',
+                        roundNumber: room.currentRound,
+                        duration: room.roundTime
                     });
 
-                    // After 5 seconds, start player phase
-                    setTimeout(() => {
-                        broadcastToGeoRoom(currentGeoRoom, {
-                            type: 'geo_playerPhaseStart',
-                            roundNumber: room.currentRound,
-                            duration: room.roundTime
-                        });
-
-                        // Start timer for players
-                        room.roundTimeout = setTimeout(() => {
-                            endGeoRound(currentGeoRoom);
-                        }, room.roundTime * 1000);
-                    }, 5000);
+                    // Start timer for players
+                    room.roundTimeout = setTimeout(() => {
+                        endGeoRound(currentGeoRoom);
+                    }, room.roundTime * 1000);
 
                 } else {
                     // Regular player confirmed
