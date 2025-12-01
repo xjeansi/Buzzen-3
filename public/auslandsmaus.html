@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auslandsmaus Jeans - Mörlen City</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 50%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(255, 77, 109, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 40% 20%, rgba(72, 219, 251, 0.2) 0%, transparent 50%);
+            animation: bgFloat 20s ease-in-out infinite;
+            z-index: -1;
+        }
+
+        @keyframes bgFloat {
+            0%, 100% { transform: scale(1) rotate(0deg); }
+            50% { transform: scale(1.1) rotate(5deg); }
+        }
+
+        .container {
+            background: rgba(20, 20, 20, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            padding: 30px;
+            max-width: 600px;
+            width: calc(100% - 40px);
+            margin: 20px auto;
+            position: relative;
+        }
+
+        .game-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            flex-direction: column;
+        }
+
+        .game-container.active {
+            display: flex;
+        }
+
+        h1 {
+            text-align: center;
+            background: linear-gradient(135deg, #fff 0%, #a0a0a0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 20px;
+            font-size: 2em;
+            font-weight: 700;
+            letter-spacing: -1px;
+        }
+
+        .back-button {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.8);
+            padding: 10px 20px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .back-button:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .setup-screen, .host-setup, .game-screen, .results-screen {
+            display: none;
+        }
+
+        .setup-screen.active, .host-setup.active, .game-screen.active, .results-screen.active {
+            display: block;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: rgba(255, 255, 255, 0.7);
+            font-weight: 500;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            font-size: 16px;
+            color: #fff;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(120, 119, 198, 0.5);
+            box-shadow: 0 0 0 4px rgba(120, 119, 198, 0.1);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #7877c6 0%, #ff4d6d 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(120, 119, 198, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .connection-status {
+            text-align: center;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .connection-status.connected {
+            background: rgba(120, 255, 145, 0.1);
+            border: 1px solid rgba(120, 255, 145, 0.3);
+            color: #78ff91;
+        }
+
+        .connection-status.disconnected {
+            background: rgba(255, 77, 109, 0.1);
+            border: 1px solid rgba(255, 77, 109, 0.3);
+            color: #ff4d6d;
+        }
+
+        /* Game UI */
+        .game-header {
+            background: rgba(20, 20, 20, 0.95);
+            padding: 15px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .game-title {
+            font-size: 1.5em;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .game-info {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .timer {
+            font-size: 1.8em;
+            font-weight: 700;
+            color: #78ff91;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .timer.warning {
+            color: #ff9f40;
+        }
+
+        .timer.critical {
+            color: #ff4d6d;
+            animation: timerPulse 0.5s ease-in-out infinite;
+        }
+
+        @keyframes timerPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .status-badge.waiting {
+            background: rgba(255, 159, 64, 0.2);
+            color: #ff9f40;
+        }
+
+        .status-badge.placed {
+            background: rgba(120, 255, 145, 0.2);
+            color: #78ff91;
+        }
+
+        #map {
+            flex: 1;
+            width: 100%;
+            background: #1a1a1a;
+        }
+
+        .map-instructions {
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(20, 20, 20, 0.95);
+            padding: 15px 25px;
+            border-radius: 15px;
+            border: 1px solid rgba(120, 119, 198, 0.5);
+            color: #fff;
+            font-weight: 600;
+            z-index: 1000;
+            pointer-events: none;
+            text-align: center;
+        }
+
+        .player-list-sidebar {
+            position: absolute;
+            top: 80px;
+            right: 20px;
+            background: rgba(20, 20, 20, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 15px;
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-width: 250px;
+            max-height: calc(100vh - 180px);
+            overflow-y: auto;
+            z-index: 1000;
+        }
+
+        .player-list-sidebar h3 {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        .player-item-sidebar {
+            padding: 8px 12px;
+            margin: 5px 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+        }
+
+        .player-item-sidebar.placed {
+            border-left: 3px solid #78ff91;
+        }
+
+        .scoreboard {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .score-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 13px;
+        }
+
+        .score-item .score {
+            font-weight: 700;
+            color: #78ff91;
+        }
+
+        /* Results Screen */
+        .results-container {
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(20, 20, 20, 0.98);
+            backdrop-filter: blur(20px);
+            padding: 30px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-width: 500px;
+            width: calc(100% - 40px);
+            max-height: calc(100vh - 180px);
+            overflow-y: auto;
+            z-index: 1001;
+        }
+
+        .results-container h2 {
+            color: #78ff91;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .result-item {
+            padding: 15px;
+            margin: 10px 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            border-left: 3px solid transparent;
+        }
+
+        .result-item.gold { border-left-color: #FFD700; }
+        .result-item.silver { border-left-color: #C0C0C0; }
+        .result-item.bronze { border-left-color: #CD7F32; }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .result-player {
+            font-weight: 700;
+            color: #fff;
+            font-size: 16px;
+        }
+
+        .result-distance {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+        }
+
+        .result-points {
+            font-weight: 700;
+            color: #78ff91;
+            font-size: 18px;
+        }
+
+        small {
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 12px;
+            display: block;
+            margin-top: 5px;
+        }
+
+        @media (max-width: 768px) {
+            .game-header {
+                padding: 10px 15px;
+            }
+
+            .game-title {
+                font-size: 1.2em;
+            }
+
+            .timer {
+                font-size: 1.5em;
+            }
+
+            .player-list-sidebar {
+                top: 70px;
+                right: 10px;
+                max-width: 200px;
+                font-size: 12px;
+            }
+
+            .results-container {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="back-button">← Zurück</a>
+        <h1>🌍 Auslandsmaus Jeans</h1>
+        
+        <div class="connection-status disconnected" id="connectionStatus">
+            Verbinde...
+        </div>
+
+        <!-- Setup Screen -->
+        <div class="setup-screen active" id="setupScreen">
+            <div class="input-group">
+                <label for="roomCode">Raum-Code:</label>
+                <input type="text" id="roomCode" placeholder="z.B. JeansIstGeil" maxlength="20">
+                <small>Alle Spieler müssen denselben Code eingeben</small>
+            </div>
+
+            <div class="input-group">
+                <label for="playerName">Dein Name:</label>
+                <input type="text" id="playerName" placeholder="z.B. Huan" maxlength="20">
+            </div>
+
+            <button class="btn btn-primary" id="joinButton">Beitreten</button>
+        </div>
+
+        <!-- Host Setup -->
+        <div class="host-setup" id="hostSetup">
+            <div style="background: rgba(72, 219, 251, 0.1); border: 1px solid rgba(72, 219, 251, 0.3); border-radius: 12px; padding: 15px; margin-bottom: 20px; color: #48dbfb; font-size: 14px;">
+                🎮 Du bist der Moderator! Wähle die Rundenzeit.
+            </div>
+
+            <div class="input-group">
+                <label for="roundTime">Zeit pro Runde (Sekunden):</label>
+                <select id="roundTime">
+                    <option value="15">15 Sekunden</option>
+                    <option value="30" selected>30 Sekunden</option>
+                    <option value="45">45 Sekunden</option>
+                    <option value="60">60 Sekunden</option>
+                    <option value="90">90 Sekunden</option>
+                    <option value="120">2 Minuten</option>
+                    <option value="180">3 Minuten</option>
+                    <option value="300">5 Minuten</option>
+                </select>
+            </div>
+
+            <button class="btn btn-primary" id="startGameButton">Spiel starten</button>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div class="game-container" id="gameContainer">
+        <div class="game-header">
+            <div class="game-title">🌍 Auslandsmaus Jeans</div>
+            <div class="game-info">
+                <div class="timer" id="timer">--:--</div>
+                <span class="status-badge waiting" id="statusBadge">Warte...</span>
+            </div>
+        </div>
+
+        <div id="map"></div>
+
+        <div class="map-instructions" id="mapInstructions">
+            Klicke auf die Karte, um einen Punkt zu setzen!
+        </div>
+
+        <div class="player-list-sidebar" id="playerSidebar">
+            <h3>Spieler</h3>
+            <div id="sidebarPlayers"></div>
+            
+            <div class="scoreboard">
+                <h3>Rangliste</h3>
+                <div id="scoreboard"></div>
+            </div>
+        </div>
+
+        <!-- Results overlay -->
+        <div class="results-container" id="resultsContainer" style="display: none;">
+            <h2>📊 Runden-Ergebnis</h2>
+            <div id="roundResults"></div>
+            <button class="btn btn-primary" id="nextRoundButton" style="margin-top: 20px;">Nächste Runde</button>
+            <button class="btn btn-secondary" id="endGameButton">Spiel beenden</button>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        let ws;
+        let map;
+        let currentRoom = null;
+        let currentPlayer = null;
+        let isModerator = false;
+        let myMarker = null;
+        let moderatorMarker = null;
+        let playerMarkers = {};
+        let gameActive = false;
+        let timerInterval = null;
+
+        const setupScreen = document.getElementById('setupScreen');
+        const hostSetup = document.getElementById('hostSetup');
+        const gameContainer = document.getElementById('gameContainer');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const container = document.querySelector('.container');
+        
+        // WebSocket connection
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}`;
+            
+            console.log('Connecting to WebSocket:', wsUrl);
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                connectionStatus.textContent = 'Verbunden ✓';
+                connectionStatus.className = 'connection-status connected';
+            };
+
+            ws.onclose = () => {
+                connectionStatus.textContent = 'Verbindung verloren';
+                connectionStatus.className = 'connection-status disconnected';
+                setTimeout(connectWebSocket, 2000);
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleMessage(data);
+            };
+        }
+
+        function handleMessage(data) {
+            console.log('Message received:', data);
+            
+            switch(data.type) {
+                case 'geo_joined':
+                    currentRoom = data.room;
+                    currentPlayer = data.playerName;
+                    isModerator = data.isModerator;
+                    
+                    container.style.display = 'none';
+                    
+                    if (isModerator) {
+                        hostSetup.classList.add('active');
+                    } else {
+                        // Wait for game to start
+                        document.getElementById('mapInstructions').textContent = 'Warte auf Moderator...';
+                    }
+                    break;
+
+                case 'geo_gameStart':
+                    initGame(data.roundTime);
+                    break;
+
+                case 'geo_playerList':
+                    updatePlayerList(data.players);
+                    break;
+
+                case 'geo_roundStart':
+                    startRound(data.roundNumber, data.duration);
+                    break;
+
+                case 'geo_playerPlaced':
+                    updatePlayerPlaced(data.playerName);
+                    break;
+
+                case 'geo_roundEnd':
+                    showRoundResults(data.results, data.moderatorPoint);
+                    break;
+
+                case 'geo_updateScores':
+                    updateScoreboard(data.scores);
+                    break;
+            }
+        }
+
+        // Initialize map
+        function initGame(roundTime) {
+            hostSetup.classList.remove('active');
+            gameContainer.classList.add('active');
+            
+            // Initialize Leaflet map
+            map = L.map('map', {
+                zoomControl: true,
+                attributionControl: false
+            }).setView([20, 0], 2);
+
+            // Add OpenStreetMap tiles without labels
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 18,
+                minZoom: 2
+            }).addTo(map);
+
+            // Set up click handler
+            map.on('click', onMapClick);
+
+            console.log('Map initialized');
+        }
+
+        function onMapClick(e) {
+            if (!gameActive) return;
+
+            const lat = e.latlng.lat;
+            const lng = e.latlng.lng;
+
+            // Remove old marker
+            if (myMarker) {
+                map.removeLayer(myMarker);
+            }
+
+            // Add new marker
+            myMarker = L.marker([lat, lng], {
+                icon: L.icon({
+                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                    iconSize: [25, 41],
+                    iconAnchor: [12, 41],
+                    popupAnchor: [1, -34],
+                    shadowSize: [41, 41]
+                })
+            }).addTo(map);
+
+            // Send to server
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'geo_placeMarker',
+                    room: currentRoom,
+                    playerName: currentPlayer,
+                    lat: lat,
+                    lng: lng
+                }));
+            }
+
+            document.getElementById('statusBadge').textContent = '✓ Gesetzt!';
+            document.getElementById('statusBadge').className = 'status-badge placed';
+        }
+
+        function startRound(roundNumber, duration) {
+            gameActive = true;
+            document.getElementById('mapInstructions').textContent = 
+                isModerator ? 'Setze deinen Punkt (Spieler sehen diesen nicht)!' : 'Klicke auf die Karte!';
+            
+            // Clear old markers
+            if (myMarker) map.removeLayer(myMarker);
+            if (moderatorMarker) map.removeLayer(moderatorMarker);
+            Object.values(playerMarkers).forEach(m => map.removeLayer(m));
+            playerMarkers = {};
+            myMarker = null;
+            moderatorMarker = null;
+
+            document.getElementById('statusBadge').textContent = 'Warte...';
+            document.getElementById('statusBadge').className = 'status-badge waiting';
+
+            // Start timer
+            let timeLeft = duration;
+            updateTimerDisplay(timeLeft);
+            
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                updateTimerDisplay(timeLeft);
+                
+                const timerEl = document.getElementById('timer');
+                if (timeLeft <= 10) {
+                    timerEl.className = 'timer critical';
+                } else if (timeLeft <= 30) {
+                    timerEl.className = 'timer warning';
+                }
+                
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    gameActive = false;
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            document.getElementById('timer').textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function updatePlayerList(players) {
+            const sidebar = document.getElementById('sidebarPlayers');
+            sidebar.innerHTML = '';
+            
+            players.forEach(p => {
+                const div = document.createElement('div');
+                div.className = 'player-item-sidebar';
+                if (p.hasPlaced) div.classList.add('placed');
+                
+                div.innerHTML = `
+                    <span>${p.name}${p.isModerator ? ' 👑' : ''}</span>
+                    <span>${p.hasPlaced ? '✓' : '⏳'}</span>
+                `;
+                sidebar.appendChild(div);
+            });
+        }
+
+        function updatePlayerPlaced(playerName) {
+            // Update UI to show player has placed
+            console.log(`${playerName} has placed their marker`);
+        }
+
+        function showRoundResults(results, moderatorPoint) {
+            gameActive = false;
+            clearInterval(timerInterval);
+            
+            // Show moderator marker
+            if (moderatorPoint) {
+                moderatorMarker = L.marker([moderatorPoint.lat, moderatorPoint.lng], {
+                    icon: L.icon({
+                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png',
+                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                        iconSize: [25, 41],
+                        iconAnchor: [12, 41],
+                        popupAnchor: [1, -34],
+                        shadowSize: [41, 41]
+                    })
+                }).addTo(map).bindPopup('🎯 Zielpunkt');
+            }
+
+            // Show all player markers
+            results.forEach(r => {
+                if (r.point && r.name !== currentPlayer) {
+                    const marker = L.marker([r.point.lat, r.point.lng]).addTo(map);
+                    marker.bindPopup(`${r.name}: ${r.distance}km`);
+                    playerMarkers[r.name] = marker;
+                }
+            });
+
+            // Show results panel
+            const resultsDiv = document.getElementById('roundResults');
+            resultsDiv.innerHTML = '';
+            
+            results.forEach((r, index) => {
+                const div = document.createElement('div');
+                div.className = 'result-item';
+                if (index === 0) div.classList.add('gold');
+                if (index === 1) div.classList.add('silver');
+                if (index === 2) div.classList.add('bronze');
+                
+                div.innerHTML = `
+                    <div class="result-header">
+                        <span class="result-player">${r.name}${r.isModerator ? ' 👑' : ''}</span>
+                        <span class="result-points">+${r.points}P</span>
+                    </div>
+                    <div class="result-distance">${r.distance} km entfernt</div>
+                `;
+                resultsDiv.appendChild(div);
+            });
+
+            document.getElementById('resultsContainer').style.display = 'block';
+            
+            // Only moderator sees next round button
+            document.getElementById('nextRoundButton').style.display = isModerator ? 'block' : 'none';
+            document.getElementById('endGameButton').style.display = isModerator ? 'block' : 'none';
+        }
+
+        function updateScoreboard(scores) {
+            const scoreboard = document.getElementById('scoreboard');
+            scoreboard.innerHTML = '';
+            
+            // Sort by score
+            const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+            
+            sorted.forEach(([name, score]) => {
+                const div = document.createElement('div');
+                div.className = 'score-item';
+                div.innerHTML = `
+                    <span>${name}</span>
+                    <span class="score">${score}P</span>
+                `;
+                scoreboard.appendChild(div);
+            });
+        }
+
+        // Event Listeners
+        document.getElementById('joinButton').addEventListener('click', () => {
+            const room = document.getElementById('roomCode').value.trim().toUpperCase();
+            const name = document.getElementById('playerName').value.trim();
+            
+            if (!room || !name) {
+                alert('Bitte Raum-Code und Name eingeben!');
+                return;
+            }
+
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'geo_join',
+                    room: room,
+                    playerName: name
+                }));
+            }
+        });
+
+        document.getElementById('startGameButton').addEventListener('click', () => {
+            const roundTime = parseInt(document.getElementById('roundTime').value);
+            
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'geo_startGame',
+                    room: currentRoom,
+                    roundTime: roundTime
+                }));
+            }
+        });
+
+        document.getElementById('nextRoundButton').addEventListener('click', () => {
+            document.getElementById('resultsContainer').style.display = 'none';
+            
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'geo_nextRound',
+                    room: currentRoom
+                }));
+            }
+        });
+
+        document.getElementById('endGameButton').addEventListener('click', () => {
+            if (confirm('Spiel wirklich beenden?')) {
+                location.href = 'index.html';
+            }
+        });
+
+        // Connect on load
+        connectWebSocket();
+    </script>
+</body>
+</html>
