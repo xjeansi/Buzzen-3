@@ -245,6 +245,185 @@
             display: none !important;
         }
 
+        /* Countdown Modal */
+        .countdown-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .countdown-modal.active {
+            display: flex;
+        }
+
+        .countdown-content {
+            text-align: center;
+            padding: 50px;
+            background: rgba(20, 20, 20, 0.95);
+            border-radius: 30px;
+            border: 2px solid rgba(120, 119, 198, 0.5);
+        }
+
+        .countdown-number {
+            font-size: 8em;
+            font-weight: 900;
+            color: #78ff91;
+            animation: countdownPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes countdownPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .countdown-text {
+            font-size: 1.5em;
+            color: rgba(255, 255, 255, 0.8);
+            margin-top: 20px;
+        }
+
+        /* Final Results Screen */
+        .final-results-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+
+        .final-results-modal.active {
+            display: flex;
+        }
+
+        .final-results-content {
+            background: rgba(20, 20, 20, 0.98);
+            backdrop-filter: blur(20px);
+            padding: 40px;
+            border-radius: 30px;
+            border: 2px solid rgba(120, 119, 198, 0.5);
+            max-width: 600px;
+            width: calc(100% - 40px);
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
+        }
+
+        .final-results-title {
+            font-size: 2.5em;
+            font-weight: 900;
+            text-align: center;
+            margin-bottom: 30px;
+            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .winner-announcement {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px;
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, rgba(255, 165, 0, 0.1) 100%);
+            border-radius: 20px;
+            border: 2px solid rgba(255, 215, 0, 0.3);
+        }
+
+        .winner-name {
+            font-size: 2em;
+            font-weight: 900;
+            color: #FFD700;
+            margin-bottom: 10px;
+        }
+
+        .winner-score {
+            font-size: 1.5em;
+            color: #fff;
+        }
+
+        .final-standings {
+            margin: 30px 0;
+        }
+
+        .final-standing-item {
+            padding: 20px;
+            margin: 15px 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 4px solid transparent;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        .final-standing-item:nth-child(1) { 
+            border-left-color: #FFD700;
+            animation-delay: 0.1s;
+        }
+        .final-standing-item:nth-child(2) { 
+            border-left-color: #C0C0C0;
+            animation-delay: 0.2s;
+        }
+        .final-standing-item:nth-child(3) { 
+            border-left-color: #CD7F32;
+            animation-delay: 0.3s;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .final-rank {
+            font-size: 1.5em;
+            font-weight: 900;
+            color: rgba(255, 255, 255, 0.4);
+            width: 40px;
+        }
+
+        .final-player-name {
+            flex: 1;
+            font-size: 1.2em;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .final-score {
+            font-size: 1.5em;
+            font-weight: 900;
+            color: #78ff91;
+        }
+
+        /* Custom tooltip styling */
+        .player-label-tooltip {
+            background: rgba(20, 20, 20, 0.95) !important;
+            border: 2px solid #48dbfb !important;
+            border-radius: 8px !important;
+            padding: 8px 12px !important;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5) !important;
+        }
+
+        .leaflet-tooltip-top::before {
+            border-top-color: #48dbfb !important;
+        }
+
         .connection-status {
             text-align: center;
             padding: 10px;
@@ -502,6 +681,26 @@
     </style>
 </head>
 <body>
+    <!-- Countdown Modal -->
+    <div class="countdown-modal" id="countdownModal">
+        <div class="countdown-content">
+            <div class="countdown-number" id="countdownNumber">5</div>
+            <div class="countdown-text">Die Spieler-Phase startet...</div>
+        </div>
+    </div>
+
+    <!-- Final Results Modal -->
+    <div class="final-results-modal" id="finalResultsModal">
+        <div class="final-results-content">
+            <div class="final-results-title">🏆 Spiel beendet!</div>
+            <div class="winner-announcement" id="winnerAnnouncement"></div>
+            <div class="final-standings" id="finalStandings"></div>
+            <button class="btn btn-primary" id="exitGameButton" style="width: 100%; margin-top: 20px;">
+                Zur Startseite
+            </button>
+        </div>
+    </div>
+
     <div class="container">
         <a href="index.html" class="back-button">← Zurück</a>
         <h1>🌍 Auslandsmaus Jeans</h1>
@@ -587,7 +786,7 @@
             <h2>📊 Runden-Ergebnis</h2>
             <div id="roundResults"></div>
             <button class="btn btn-primary" id="nextRoundButton" style="margin-top: 20px;">Nächste Runde</button>
-            <button class="btn btn-secondary" id="endGameButton">Spiel beenden</button>
+            <button class="btn btn-primary" id="endGameFinalButton" style="margin-top: 10px;">🏆 Spiel beenden</button>
         </div>
     </div>
 
@@ -609,6 +808,7 @@
         let timerInterval = null;
         let markerPlaced = false;
         let markerConfirmed = false;
+        let countdownInterval = null;
 
         const setupScreen = document.getElementById('setupScreen');
         const hostSetup = document.getElementById('hostSetup');
@@ -618,6 +818,9 @@
         const confirmButton = document.getElementById('confirmButton');
         const toggleResultsButton = document.getElementById('toggleResultsButton');
         const resultsContainer = document.getElementById('resultsContainer');
+        const countdownModal = document.getElementById('countdownModal');
+        const countdownNumber = document.getElementById('countdownNumber');
+        const finalResultsModal = document.getElementById('finalResultsModal');
         
         // WebSocket connection
         function connectWebSocket() {
@@ -714,6 +917,19 @@
                     // When moderator confirms, players can now place
                     document.getElementById('resultsContainer').style.display = 'none';
                     startRound(data.roundNumber, data.duration, false);
+                    break;
+
+                case 'geo_countdown':
+                    showCountdown();
+                    break;
+
+                case 'geo_finalResults':
+                    showFinalResults(data.scores);
+                    break;
+
+                case 'geo_gameEnded':
+                    // Moderator ended game, go back to index
+                    window.location.href = 'index.html';
                     break;
 
                 case 'geo_playerPlaced':
@@ -961,24 +1177,31 @@
                         playerMarkers[r.name + '_line'] = line;
                     }
 
-                    // Create marker with custom icon showing name and distance
+                    // Create regular marker
                     const marker = L.marker([r.point.lat, r.point.lng], {
-                        icon: L.divIcon({
-                            className: 'custom-marker',
-                            html: `
-                                <div style="text-align: center; transform: translateX(-50%);">
-                                    <div style="background: rgba(20, 20, 20, 0.95); padding: 8px 12px; border-radius: 8px; border: 2px solid #48dbfb; margin-bottom: 5px; white-space: nowrap; box-shadow: 0 2px 10px rgba(0,0,0,0.5);">
-                                        <div style="font-weight: 700; color: #fff; font-size: 14px;">${r.name}</div>
-                                        <div style="font-size: 12px; color: #48dbfb; margin-top: 2px;">${r.distance} km</div>
-                                    </div>
-                                    <div style="width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 8px solid #48dbfb; margin: 0 auto;"></div>
-                                    <div style="width: 12px; height: 12px; background: #ff4d6d; border: 2px solid #fff; border-radius: 50%; margin: 2px auto 0; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>
-                                </div>
-                            `,
-                            iconSize: [100, 80],
-                            iconAnchor: [50, 80]
+                        icon: L.icon({
+                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                            iconSize: [25, 41],
+                            iconAnchor: [12, 41],
+                            popupAnchor: [1, -34],
+                            shadowSize: [41, 41]
                         })
                     }).addTo(map);
+
+                    // Add permanent tooltip with name and distance
+                    marker.bindTooltip(
+                        `<div style="text-align: center; font-weight: 700;">
+                            <div style="font-size: 14px; color: #000; margin-bottom: 3px;">${r.name}</div>
+                            <div style="font-size: 12px; color: #48dbfb;">${r.distance} km</div>
+                        </div>`,
+                        {
+                            permanent: true,
+                            direction: 'top',
+                            offset: [0, -45],
+                            className: 'player-label-tooltip'
+                        }
+                    ).openTooltip();
                     
                     playerMarkers[r.name] = marker;
                 }
@@ -1008,9 +1231,9 @@
             resultsContainer.style.display = 'block';
             resultsContainer.classList.remove('minimized');
             
-            // Only moderator sees next round button
+            // Only moderator sees buttons
             document.getElementById('nextRoundButton').style.display = isModerator ? 'block' : 'none';
-            document.getElementById('endGameButton').style.display = isModerator ? 'block' : 'none';
+            document.getElementById('endGameFinalButton').style.display = isModerator ? 'block' : 'none';
         }
 
         function updateScoreboard(scores) {
@@ -1029,6 +1252,59 @@
                 `;
                 scoreboard.appendChild(div);
             });
+        }
+
+        // Countdown animation
+        function showCountdown() {
+            let count = 5;
+            countdownNumber.textContent = count;
+            countdownModal.classList.add('active');
+            
+            if (countdownInterval) clearInterval(countdownInterval);
+            
+            countdownInterval = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    countdownNumber.textContent = count;
+                } else {
+                    clearInterval(countdownInterval);
+                    countdownModal.classList.remove('active');
+                }
+            }, 1000);
+        }
+
+        // Show final results with animation
+        function showFinalResults(scores) {
+            const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+            
+            // Winner announcement
+            const winner = sorted[0];
+            const winnerDiv = document.getElementById('winnerAnnouncement');
+            winnerDiv.innerHTML = `
+                <div class="winner-name">👑 ${winner[0]}</div>
+                <div class="winner-score">${winner[1]} Punkte</div>
+            `;
+
+            // All standings
+            const standingsDiv = document.getElementById('finalStandings');
+            standingsDiv.innerHTML = '';
+            
+            sorted.forEach(([name, score], index) => {
+                const div = document.createElement('div');
+                div.className = 'final-standing-item';
+                div.style.animationDelay = `${index * 0.1}s`;
+                
+                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '';
+                
+                div.innerHTML = `
+                    <div class="final-rank">${medal || (index + 1)}</div>
+                    <div class="final-player-name">${name}</div>
+                    <div class="final-score">${score}P</div>
+                `;
+                standingsDiv.appendChild(div);
+            });
+
+            finalResultsModal.classList.add('active');
         }
 
         // Event Listeners
@@ -1109,6 +1385,27 @@
         // Toggle results visibility
         toggleResultsButton.addEventListener('click', () => {
             resultsContainer.classList.toggle('minimized');
+        });
+
+        // End game final button (shows final results)
+        document.getElementById('endGameFinalButton').addEventListener('click', () => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'geo_endGame',
+                    room: currentRoom
+                }));
+            }
+        });
+
+        // Exit game button (closes room and returns everyone to index)
+        document.getElementById('exitGameButton').addEventListener('click', () => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'geo_exitGame',
+                    room: currentRoom
+                }));
+            }
+            window.location.href = 'index.html';
         });
 
         // Connect on load
