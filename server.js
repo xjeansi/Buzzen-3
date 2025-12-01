@@ -272,6 +272,7 @@ function startGeoRound(roomCode) {
 
     room.currentRound++;
     room.roundActive = true;
+    room.moderatorPhase = true; // Start with moderator phase
     room.moderatorPoint = null;
 
     // Reset player states
@@ -280,29 +281,30 @@ function startGeoRound(roomCode) {
         p.point = null;
     });
 
+    // Tell everyone round started (moderator phase)
     broadcastToGeoRoom(roomCode, {
         type: 'geo_roundStart',
         roundNumber: room.currentRound,
-        duration: room.roundTime
+        duration: room.roundTime,
+        moderatorPhase: true
     });
 
     sendGeoPlayerList(roomCode);
 
-    console.log(`Geo round ${room.currentRound} started in ${roomCode}`);
+    console.log(`Geo round ${room.currentRound} started in ${roomCode} (moderator phase)`);
 
-    // Auto-end round after time
-    room.roundTimeout = setTimeout(() => {
-        endGeoRound(roomCode);
-    }, room.roundTime * 1000);
+    // No timeout in moderator phase - wait for moderator to confirm
 }
 
 function checkAllPlacedGeo(roomCode) {
     const room = geoRooms.get(roomCode);
-    if (!room || !room.roundActive) return;
+    if (!room || !room.roundActive || room.moderatorPhase) return;
 
-    const allPlaced = Array.from(room.players.values()).every(p => p.hasPlaced);
+    // Check if all NON-MODERATOR players have placed
+    const nonModPlayers = Array.from(room.players.values()).filter(p => !p.isModerator);
+    const allPlaced = nonModPlayers.every(p => p.hasPlaced);
 
-    if (allPlaced) {
+    if (allPlaced && nonModPlayers.length > 0) {
         clearTimeout(room.roundTimeout);
         endGeoRound(roomCode);
     }
@@ -773,7 +775,7 @@ wss.on('connection', (ws) => {
                 console.log(`Geo game started in ${currentGeoRoom}`);
             }
 
-            else if (message.type === 'geo_placeMarker') {
+            else if (message.type === 'geo_confirmMarker') {
                 if (!currentGeoRoom || !currentPlayer) return;
 
                 const room = geoRooms.get(currentGeoRoom);
@@ -786,20 +788,38 @@ wss.on('connection', (ws) => {
                 player.point = { lat: message.lat, lng: message.lng };
 
                 if (player.isModerator) {
+                    // Moderator confirmed - start player phase
                     room.moderatorPoint = player.point;
+                    room.moderatorPhase = false;
+
+                    console.log(`Moderator confirmed point, starting player phase in ${currentGeoRoom}`);
+
+                    // Broadcast that players can now place
+                    broadcastToGeoRoom(currentGeoRoom, {
+                        type: 'geo_playerPhaseStart',
+                        roundNumber: room.currentRound,
+                        duration: room.roundTime
+                    });
+
+                    // Start timer for players
+                    room.roundTimeout = setTimeout(() => {
+                        endGeoRound(currentGeoRoom);
+                    }, room.roundTime * 1000);
+
+                } else {
+                    // Regular player confirmed
+                    broadcastToGeoRoom(currentGeoRoom, {
+                        type: 'geo_playerPlaced',
+                        playerName: currentPlayer
+                    }, ws);
+
+                    sendGeoPlayerList(currentGeoRoom);
+
+                    // Check if all placed
+                    checkAllPlacedGeo(currentGeoRoom);
                 }
 
-                broadcastToGeoRoom(currentGeoRoom, {
-                    type: 'geo_playerPlaced',
-                    playerName: currentPlayer
-                }, ws);
-
-                sendGeoPlayerList(currentGeoRoom);
-
-                // Check if all placed
-                checkAllPlacedGeo(currentGeoRoom);
-
-                console.log(`${currentPlayer} placed marker in geo room ${currentGeoRoom}`);
+                console.log(`${currentPlayer} confirmed marker in geo room ${currentGeoRoom}`);
             }
 
             else if (message.type === 'geo_nextRound') {
