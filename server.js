@@ -25,9 +25,10 @@ app.get('/', (req, res) => {
     }
 });
 
-// Store rooms for both games
+// Store rooms for all games
 const buzzerRooms = new Map();
 const guessingRooms = new Map();
+const geoRooms = new Map();
 
 // Helper functions for Buzzer Game
 function broadcastToBuzzerRoom(roomCode, message, excludeWs = null) {
@@ -227,10 +228,159 @@ function endGuessingGame(roomCode) {
     sendGuessingPlayerList(roomCode);
 }
 
+// Helper functions for Geo Game
+function broadcastToGeoRoom(roomCode, message, excludeWs = null) {
+    const room = geoRooms.get(roomCode);
+    if (!room) return;
+
+    room.clients.forEach(client => {
+        if (client.ws !== excludeWs && client.ws.readyState === 1) {
+            client.ws.send(JSON.stringify(message));
+        }
+    });
+}
+
+function sendGeoPlayerList(roomCode) {
+    const room = geoRooms.get(roomCode);
+    if (!room) return;
+
+    const players = Array.from(room.players.values()).map(p => ({
+        name: p.name,
+        isModerator: p.isModerator,
+        hasPlaced: p.hasPlaced
+    }));
+
+    broadcastToGeoRoom(roomCode, {
+        type: 'geo_playerList',
+        players: players
+    });
+}
+
+function sendGeoScores(roomCode) {
+    const room = geoRooms.get(roomCode);
+    if (!room) return;
+
+    broadcastToGeoRoom(roomCode, {
+        type: 'geo_updateScores',
+        scores: room.scores
+    });
+}
+
+function startGeoRound(roomCode) {
+    const room = geoRooms.get(roomCode);
+    if (!room) return;
+
+    room.currentRound++;
+    room.roundActive = true;
+    room.moderatorPoint = null;
+
+    // Reset player states
+    room.players.forEach(p => {
+        p.hasPlaced = false;
+        p.point = null;
+    });
+
+    broadcastToGeoRoom(roomCode, {
+        type: 'geo_roundStart',
+        roundNumber: room.currentRound,
+        duration: room.roundTime
+    });
+
+    sendGeoPlayerList(roomCode);
+
+    console.log(`Geo round ${room.currentRound} started in ${roomCode}`);
+
+    // Auto-end round after time
+    room.roundTimeout = setTimeout(() => {
+        endGeoRound(roomCode);
+    }, room.roundTime * 1000);
+}
+
+function checkAllPlacedGeo(roomCode) {
+    const room = geoRooms.get(roomCode);
+    if (!room || !room.roundActive) return;
+
+    const allPlaced = Array.from(room.players.values()).every(p => p.hasPlaced);
+
+    if (allPlaced) {
+        clearTimeout(room.roundTimeout);
+        endGeoRound(roomCode);
+    }
+}
+
+function endGeoRound(roomCode) {
+    const room = geoRooms.get(roomCode);
+    if (!room) return;
+
+    room.roundActive = false;
+
+    // Calculate distances and award points
+    const results = [];
+
+    room.players.forEach(player => {
+        if (!player.isModerator && player.point && room.moderatorPoint) {
+            const distance = calculateDistance(
+                player.point.lat, player.point.lng,
+                room.moderatorPoint.lat, room.moderatorPoint.lng
+            );
+
+            let points = 0;
+            if (distance < 100) points = 3;
+            else if (distance < 500) points = 2;
+            else if (distance < 1000) points = 1;
+
+            room.scores[player.name] = (room.scores[player.name] || 0) + points;
+
+            results.push({
+                name: player.name,
+                isModerator: false,
+                distance: Math.round(distance),
+                points: points,
+                point: player.point
+            });
+        } else if (player.isModerator) {
+            results.push({
+                name: player.name,
+                isModerator: true,
+                distance: 0,
+                points: 0,
+                point: player.point
+            });
+        }
+    });
+
+    // Sort by distance
+    results.sort((a, b) => a.distance - b.distance);
+
+    broadcastToGeoRoom(roomCode, {
+        type: 'geo_roundEnd',
+        results: results,
+        moderatorPoint: room.moderatorPoint
+    });
+
+    sendGeoScores(roomCode);
+
+    console.log(`Geo round ended in ${roomCode}`);
+}
+
+// Haversine formula to calculate distance between two points
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Radius of Earth in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
 wss.on('connection', (ws) => {
     console.log('New client connected');
     let currentBuzzerRoom = null;
     let currentGuessingRoom = null;
+    let currentGeoRoom = null;
     let currentPlayer = null;
 
     ws.on('message', (data) => {
@@ -549,6 +699,118 @@ wss.on('connection', (ws) => {
 
                 console.log(`Next round started in ${currentGuessingRoom}, all states reset`);
             }
+
+            // GEO GAME HANDLERS
+            else if (message.type === 'geo_join') {
+                const roomCode = message.room.toUpperCase();
+                const playerName = message.playerName;
+
+                let isModerator = false;
+                if (!geoRooms.has(roomCode)) {
+                    isModerator = true;
+                    geoRooms.set(roomCode, {
+                        code: roomCode,
+                        moderator: playerName,
+                        players: new Map(),
+                        clients: new Set(),
+                        roundTime: 30,
+                        currentRound: 0,
+                        gameStarted: false,
+                        roundActive: false,
+                        scores: {},
+                        moderatorPoint: null,
+                        playerPoints: new Map()
+                    });
+                }
+
+                const room = geoRooms.get(roomCode);
+                room.players.set(playerName, {
+                    name: playerName,
+                    isModerator: isModerator,
+                    hasPlaced: false,
+                    point: null
+                });
+
+                room.clients.add({ ws, playerName });
+                room.scores[playerName] = room.scores[playerName] || 0;
+                
+                currentGeoRoom = roomCode;
+                currentPlayer = playerName;
+
+                ws.send(JSON.stringify({
+                    type: 'geo_joined',
+                    room: roomCode,
+                    playerName: playerName,
+                    isModerator: isModerator
+                }));
+
+                sendGeoPlayerList(roomCode);
+                sendGeoScores(roomCode);
+
+                console.log(`${playerName} joined geo room ${roomCode} (moderator: ${isModerator})`);
+            }
+
+            else if (message.type === 'geo_startGame') {
+                if (!currentGeoRoom) return;
+
+                const room = geoRooms.get(currentGeoRoom);
+                if (!room || room.moderator !== currentPlayer) return;
+
+                room.roundTime = message.roundTime || 30;
+                room.gameStarted = true;
+                room.currentRound = 0;
+
+                broadcastToGeoRoom(currentGeoRoom, {
+                    type: 'geo_gameStart',
+                    roundTime: room.roundTime
+                });
+
+                // Start first round
+                setTimeout(() => {
+                    startGeoRound(currentGeoRoom);
+                }, 2000);
+
+                console.log(`Geo game started in ${currentGeoRoom}`);
+            }
+
+            else if (message.type === 'geo_placeMarker') {
+                if (!currentGeoRoom || !currentPlayer) return;
+
+                const room = geoRooms.get(currentGeoRoom);
+                if (!room || !room.roundActive) return;
+
+                const player = room.players.get(currentPlayer);
+                if (!player) return;
+
+                player.hasPlaced = true;
+                player.point = { lat: message.lat, lng: message.lng };
+
+                if (player.isModerator) {
+                    room.moderatorPoint = player.point;
+                }
+
+                broadcastToGeoRoom(currentGeoRoom, {
+                    type: 'geo_playerPlaced',
+                    playerName: currentPlayer
+                }, ws);
+
+                sendGeoPlayerList(currentGeoRoom);
+
+                // Check if all placed
+                checkAllPlacedGeo(currentGeoRoom);
+
+                console.log(`${currentPlayer} placed marker in geo room ${currentGeoRoom}`);
+            }
+
+            else if (message.type === 'geo_nextRound') {
+                if (!currentGeoRoom) return;
+
+                const room = geoRooms.get(currentGeoRoom);
+                if (!room || room.moderator !== currentPlayer) return;
+
+                startGeoRound(currentGeoRoom);
+            }
+            
             else {
                 console.warn('Unknown message type:', message.type);
                 console.log('Full message:', message);
@@ -605,6 +867,29 @@ wss.on('connection', (ws) => {
                 }
             }
         }
+
+        // Clean up geo room
+        if (currentGeoRoom && currentPlayer) {
+            const room = geoRooms.get(currentGeoRoom);
+            if (room) {
+                room.players.delete(currentPlayer);
+                room.clients.forEach(client => {
+                    if (client.playerName === currentPlayer) {
+                        room.clients.delete(client);
+                    }
+                });
+
+                if (room.players.size === 0) {
+                    if (room.roundTimeout) {
+                        clearTimeout(room.roundTimeout);
+                    }
+                    geoRooms.delete(currentGeoRoom);
+                    console.log(`Geo room ${currentGeoRoom} deleted (empty)`);
+                } else {
+                    sendGeoPlayerList(currentGeoRoom);
+                }
+            }
+        }
     });
 });
 
@@ -613,10 +898,11 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`========================================`);
     console.log(`Server running on port ${PORT}`);
-    console.log(`Version: 2.0 - Multi-Game Support`);
+    console.log(`Version: 3.0 - Multi-Game Support`);
     console.log(`Updated: ${new Date().toISOString()}`);
     console.log(`Buzzer Game: /buzzer.html`);
     console.log(`Guessing Game: /schaetzen.html`);
-    console.log(`Guessing handlers: ENABLED`);
+    console.log(`Geo Game: /auslandsmaus.html`);
+    console.log(`All game handlers: ENABLED`);
     console.log(`========================================`);
 });
