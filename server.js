@@ -244,10 +244,17 @@ function sendGeoPlayerList(roomCode) {
     const room = geoRooms.get(roomCode);
     if (!room) return;
 
+    // Get list of connected player names
+    const connectedPlayers = new Set();
+    room.clients.forEach(client => {
+        connectedPlayers.add(client.playerName);
+    });
+
     const players = Array.from(room.players.values()).map(p => ({
         name: p.name,
         isModerator: p.isModerator,
-        hasPlaced: p.hasPlaced
+        hasPlaced: p.hasPlaced,
+        isConnected: connectedPlayers.has(p.name)
     }));
 
     broadcastToGeoRoom(roomCode, {
@@ -708,9 +715,12 @@ wss.on('connection', (ws) => {
                 const playerName = message.playerName;
 
                 let isModerator = false;
-                if (!geoRooms.has(roomCode)) {
+                let room = geoRooms.get(roomCode);
+                
+                if (!room) {
+                    // New room - first player is moderator
                     isModerator = true;
-                    geoRooms.set(roomCode, {
+                    room = {
                         code: roomCode,
                         moderator: playerName,
                         players: new Map(),
@@ -722,19 +732,38 @@ wss.on('connection', (ws) => {
                         scores: {},
                         moderatorPoint: null,
                         playerPoints: new Map()
+                    };
+                    geoRooms.set(roomCode, room);
+                } else {
+                    // Rejoining existing room
+                    isModerator = (room.moderator === playerName);
+                }
+
+                // Check if player existed before (reconnecting)
+                let existingPlayer = room.players.get(playerName);
+                
+                if (existingPlayer) {
+                    // Player is reconnecting - restore their data
+                    console.log(`${playerName} is reconnecting to geo room ${roomCode}`);
+                    existingPlayer.isModerator = isModerator;
+                    // Keep hasPlaced and point if round is active
+                } else {
+                    // New player
+                    room.players.set(playerName, {
+                        name: playerName,
+                        isModerator: isModerator,
+                        hasPlaced: false,
+                        point: null
                     });
                 }
 
-                const room = geoRooms.get(roomCode);
-                room.players.set(playerName, {
-                    name: playerName,
-                    isModerator: isModerator,
-                    hasPlaced: false,
-                    point: null
-                });
-
+                // Add/update client connection
                 room.clients.add({ ws, playerName });
-                room.scores[playerName] = room.scores[playerName] || 0;
+                
+                // Ensure score exists (restore if rejoining)
+                if (!room.scores[playerName]) {
+                    room.scores[playerName] = 0;
+                }
                 
                 currentGeoRoom = roomCode;
                 currentPlayer = playerName;
@@ -743,13 +772,16 @@ wss.on('connection', (ws) => {
                     type: 'geo_joined',
                     room: roomCode,
                     playerName: playerName,
-                    isModerator: isModerator
+                    isModerator: isModerator,
+                    score: room.scores[playerName], // Send current score
+                    roundNumber: room.currentRound,
+                    gameStarted: room.gameStarted
                 }));
 
                 sendGeoPlayerList(roomCode);
                 sendGeoScores(roomCode);
 
-                console.log(`${playerName} joined geo room ${roomCode} (moderator: ${isModerator})`);
+                console.log(`${playerName} joined geo room ${roomCode} (moderator: ${isModerator}, score: ${room.scores[playerName]})`);
             }
 
             else if (message.type === 'geo_startGame') {
@@ -892,20 +924,24 @@ wss.on('connection', (ws) => {
         if (currentGeoRoom && currentPlayer) {
             const room = geoRooms.get(currentGeoRoom);
             if (room) {
-                room.players.delete(currentPlayer);
+                // Remove client connection but KEEP player data and score
                 room.clients.forEach(client => {
                     if (client.playerName === currentPlayer) {
                         room.clients.delete(client);
                     }
                 });
 
-                if (room.players.size === 0) {
+                console.log(`${currentPlayer} disconnected from geo room ${currentGeoRoom} (data preserved)`);
+
+                // Only delete room if NO clients left at all
+                if (room.clients.size === 0) {
                     if (room.roundTimeout) {
                         clearTimeout(room.roundTimeout);
                     }
                     geoRooms.delete(currentGeoRoom);
-                    console.log(`Geo room ${currentGeoRoom} deleted (empty)`);
+                    console.log(`Geo room ${currentGeoRoom} deleted (empty, no clients)`);
                 } else {
+                    // Update player list to show disconnected status
                     sendGeoPlayerList(currentGeoRoom);
                 }
             }
