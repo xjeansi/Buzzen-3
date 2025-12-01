@@ -663,18 +663,35 @@
                     isModerator = data.isModerator;
                     
                     console.log('I am moderator:', isModerator);
+                    console.log('Current score:', data.score);
+                    console.log('Game started:', data.gameStarted);
+                    console.log('Round number:', data.roundNumber);
                     
                     // Hide setup screen (not the whole container!)
                     setupScreen.classList.remove('active');
                     
-                    if (isModerator) {
+                    if (isModerator && !data.gameStarted) {
+                        // Moderator joins fresh game - show setup
                         console.log('Showing host setup');
                         hostSetup.classList.add('active');
-                        console.log('Host setup classes:', hostSetup.className);
+                    } else if (data.gameStarted) {
+                        // Rejoining active game - go straight to game screen
+                        console.log('Rejoining active game');
+                        hostSetup.classList.remove('active');
+                        
+                        // Initialize map if not already done
+                        if (!map) {
+                            initGame(data.roundTime || 30);
+                        }
+                        
+                        document.getElementById('mapInstructions').textContent = 
+                            'Du bist wieder im Spiel! Warte auf die nächste Phase...';
                     } else {
                         console.log('Waiting for game to start');
                         // Wait for game to start
-                        document.getElementById('mapInstructions').textContent = 'Warte auf Moderator...';
+                        if (typeof document.getElementById('mapInstructions') !== 'undefined') {
+                            document.getElementById('mapInstructions').textContent = 'Warte auf Moderator...';
+                        }
                     }
                     break;
 
@@ -888,9 +905,14 @@
                 div.className = 'player-item-sidebar';
                 if (p.hasPlaced) div.classList.add('placed');
                 
+                // Show disconnected status
+                const statusIcon = p.hasPlaced ? '✓' : '⏳';
+                const nameText = p.isConnected ? p.name : `${p.name} (offline)`;
+                const nameStyle = p.isConnected ? '' : 'opacity: 0.5;';
+                
                 div.innerHTML = `
-                    <span>${p.name}${p.isModerator ? ' 👑' : ''}</span>
-                    <span>${p.hasPlaced ? '✓' : '⏳'}</span>
+                    <span style="${nameStyle}">${nameText}${p.isModerator ? ' 👑' : ''}</span>
+                    <span>${statusIcon}</span>
                 `;
                 sidebar.appendChild(div);
             });
