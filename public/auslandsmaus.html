@@ -245,50 +245,6 @@
             display: none !important;
         }
 
-        /* Countdown Modal */
-        .countdown-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.9);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-        }
-
-        .countdown-modal.active {
-            display: flex;
-        }
-
-        .countdown-content {
-            text-align: center;
-            padding: 50px;
-            background: rgba(20, 20, 20, 0.95);
-            border-radius: 30px;
-            border: 2px solid rgba(120, 119, 198, 0.5);
-        }
-
-        .countdown-number {
-            font-size: 8em;
-            font-weight: 900;
-            color: #78ff91;
-            animation: countdownPulse 1s ease-in-out infinite;
-        }
-
-        @keyframes countdownPulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-        }
-
-        .countdown-text {
-            font-size: 1.5em;
-            color: rgba(255, 255, 255, 0.8);
-            margin-top: 20px;
-        }
-
         /* Final Results Screen */
         .final-results-modal {
             position: fixed;
@@ -681,14 +637,6 @@
     </style>
 </head>
 <body>
-    <!-- Countdown Modal -->
-    <div class="countdown-modal" id="countdownModal">
-        <div class="countdown-content">
-            <div class="countdown-number" id="countdownNumber">5</div>
-            <div class="countdown-text">Die Spieler-Phase startet...</div>
-        </div>
-    </div>
-
     <!-- Final Results Modal -->
     <div class="final-results-modal" id="finalResultsModal">
         <div class="final-results-content">
@@ -808,7 +756,6 @@
         let timerInterval = null;
         let markerPlaced = false;
         let markerConfirmed = false;
-        let countdownInterval = null;
 
         const setupScreen = document.getElementById('setupScreen');
         const hostSetup = document.getElementById('hostSetup');
@@ -818,8 +765,6 @@
         const confirmButton = document.getElementById('confirmButton');
         const toggleResultsButton = document.getElementById('toggleResultsButton');
         const resultsContainer = document.getElementById('resultsContainer');
-        const countdownModal = document.getElementById('countdownModal');
-        const countdownNumber = document.getElementById('countdownNumber');
         const finalResultsModal = document.getElementById('finalResultsModal');
         
         // WebSocket connection
@@ -917,10 +862,6 @@
                     // When moderator confirms, players can now place
                     document.getElementById('resultsContainer').style.display = 'none';
                     startRound(data.roundNumber, data.duration, false);
-                    break;
-
-                case 'geo_countdown':
-                    showCountdown();
                     break;
 
                 case 'geo_finalResults':
@@ -1252,25 +1193,6 @@
                 `;
                 scoreboard.appendChild(div);
             });
-        }
-
-        // Countdown animation
-        function showCountdown() {
-            let count = 5;
-            countdownNumber.textContent = count;
-            countdownModal.classList.add('active');
-            
-            if (countdownInterval) clearInterval(countdownInterval);
-            
-            countdownInterval = setInterval(() => {
-                count--;
-                if (count > 0) {
-                    countdownNumber.textContent = count;
-                } else {
-                    clearInterval(countdownInterval);
-                    countdownModal.classList.remove('active');
-                }
-            }, 1000);
         }
 
         // Show final results with animation
