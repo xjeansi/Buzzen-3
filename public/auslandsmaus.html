@@ -1349,12 +1349,6 @@
             }
         });
 
-        document.getElementById('endGameButton').addEventListener('click', () => {
-            if (confirm('Spiel wirklich beenden?')) {
-                location.href = 'index.html';
-            }
-        });
-
         // Confirm marker button
         confirmButton.addEventListener('click', () => {
             if (!markerPlaced || !myMarker) return;
