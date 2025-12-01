@@ -568,18 +568,29 @@
 
         function handleMessage(data) {
             console.log('Message received:', data);
+            console.log('Message type is:', data.type);
+            console.log('Checking switch...');
             
             switch(data.type) {
                 case 'geo_joined':
+                    console.log('✓✓✓ geo_joined case triggered!');
+                    console.log('geo_joined received:', data);
                     currentRoom = data.room;
                     currentPlayer = data.playerName;
                     isModerator = data.isModerator;
                     
+                    console.log('I am moderator:', isModerator);
+                    console.log('Container element:', container);
+                    console.log('hostSetup element:', hostSetup);
+                    
                     container.style.display = 'none';
                     
                     if (isModerator) {
+                        console.log('Showing host setup');
                         hostSetup.classList.add('active');
+                        console.log('Host setup classes:', hostSetup.className);
                     } else {
+                        console.log('Waiting for game to start');
                         // Wait for game to start
                         document.getElementById('mapInstructions').textContent = 'Warte auf Moderator...';
                     }
