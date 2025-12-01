@@ -820,23 +820,30 @@ wss.on('connection', (ws) => {
                 player.point = { lat: message.lat, lng: message.lng };
 
                 if (player.isModerator) {
-                    // Moderator confirmed - start player phase
+                    // Moderator confirmed - start countdown, then player phase
                     room.moderatorPoint = player.point;
                     room.moderatorPhase = false;
 
-                    console.log(`Moderator confirmed point, starting player phase in ${currentGeoRoom}`);
+                    console.log(`Moderator confirmed point, broadcasting countdown in ${currentGeoRoom}`);
 
-                    // Broadcast that players can now place
+                    // Broadcast countdown to all players
                     broadcastToGeoRoom(currentGeoRoom, {
-                        type: 'geo_playerPhaseStart',
-                        roundNumber: room.currentRound,
-                        duration: room.roundTime
+                        type: 'geo_countdown'
                     });
 
-                    // Start timer for players
-                    room.roundTimeout = setTimeout(() => {
-                        endGeoRound(currentGeoRoom);
-                    }, room.roundTime * 1000);
+                    // After 5 seconds, start player phase
+                    setTimeout(() => {
+                        broadcastToGeoRoom(currentGeoRoom, {
+                            type: 'geo_playerPhaseStart',
+                            roundNumber: room.currentRound,
+                            duration: room.roundTime
+                        });
+
+                        // Start timer for players
+                        room.roundTimeout = setTimeout(() => {
+                            endGeoRound(currentGeoRoom);
+                        }, room.roundTime * 1000);
+                    }, 5000);
 
                 } else {
                     // Regular player confirmed
@@ -861,6 +868,41 @@ wss.on('connection', (ws) => {
                 if (!room || room.moderator !== currentPlayer) return;
 
                 startGeoRound(currentGeoRoom);
+            }
+
+            else if (message.type === 'geo_endGame') {
+                if (!currentGeoRoom) return;
+
+                const room = geoRooms.get(currentGeoRoom);
+                if (!room || room.moderator !== currentPlayer) return;
+
+                // Send final results to all players
+                broadcastToGeoRoom(currentGeoRoom, {
+                    type: 'geo_finalResults',
+                    scores: room.scores
+                });
+
+                console.log(`Game ended in ${currentGeoRoom}, final results sent`);
+            }
+
+            else if (message.type === 'geo_exitGame') {
+                if (!currentGeoRoom) return;
+
+                const room = geoRooms.get(currentGeoRoom);
+                if (!room || room.moderator !== currentPlayer) return;
+
+                // Tell everyone to go back to index
+                broadcastToGeoRoom(currentGeoRoom, {
+                    type: 'geo_gameEnded'
+                });
+
+                // Delete the room
+                if (room.roundTimeout) {
+                    clearTimeout(room.roundTimeout);
+                }
+                geoRooms.delete(currentGeoRoom);
+
+                console.log(`Moderator exited game, room ${currentGeoRoom} deleted`);
             }
             
             else {
